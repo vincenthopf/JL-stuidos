@@ -1,3 +1,5 @@
 # Simple Space shooter
 
-Made with no ai promise
+jake is gay 
+made by jesse
+
