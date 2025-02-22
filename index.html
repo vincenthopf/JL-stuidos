@@ -1,212 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Space Shooter Evolved</title>
+    <title>Enhanced Space Shooter</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background: #111;
+            background: black;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             font-family: Arial, sans-serif;
-            color: white;
         }
         canvas {
-            border: 2px solid #333;
-            box-shadow: 0 0 20px rgba(0, 100, 255, 0.5);
-        }
-        #upgradeMenu {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.9);
-            padding: 20px;
             border: 2px solid #444;
-            border-radius: 10px;
-            display: none;
-            width: 400px;
+            box-shadow: 0 0 20px #1a1a1a;
+            border-radius: 4px;
+            background: black;
         }
-        .upgrade-button {
-            background: #225;
-            color: white;
-            border: 1px solid #447;
-            padding: 10px;
-            margin: 5px;
-            cursor: pointer;
-            width: 100%;
-            border-radius: 5px;
-        }
-        .upgrade-button:hover {
-            background: #336;
-        }
+        * { margin: 0; padding: 0; }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-    <div id="upgradeMenu">
-        <h2>Wave Complete! Choose an Upgrade:</h2>
-        <div id="upgradeOptions"></div>
-    </div>
-
     <script>
+        // Get canvas and context
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const upgradeMenu = document.getElementById('upgradeMenu');
-        const upgradeOptions = document.getElementById('upgradeOptions');
 
+        // Set canvas size
         canvas.width = 800;
         canvas.height = 600;
 
-        // Enhanced game constants
+        // Game constants
         const PLAYER_SIZE = 40;
         const ENEMY_SIZE = 30;
         const BULLET_SIZE = 8;
-        const POWERUP_SIZE = 20;
+        const SHOOT_COOLDOWN = 45; // Significantly increased cooldown time
+        const SHOOT_COST = 20;    // Increased energy cost
+        const MAX_ENERGY = 100;
+        const ENERGY_REGEN = 0.4; // Slightly reduced energy regen
 
-        // Particle system
-        class ParticleSystem {
-            constructor() {
-                this.particles = [];
-            }
-
-            emit(x, y, color, count = 10, speed = 3, lifetime = 30) {
-                for (let i = 0; i < count; i++) {
-                    const angle = Math.random() * Math.PI * 2;
-                    const velocity = Math.random() * speed;
-                    this.particles.push({
-                        x,
-                        y,
-                        dx: Math.cos(angle) * velocity,
-                        dy: Math.sin(angle) * velocity,
-                        color,
-                        lifetime: lifetime + Math.random() * 20,
-                        maxLifetime: lifetime,
-                        size: Math.random() * 4 + 2
-                    });
-                }
-            }
-
-            update() {
-                this.particles = this.particles.filter(p => {
-                    p.x += p.dx;
-                    p.y += p.dy;
-                    p.lifetime--;
-                    return p.lifetime > 0;
-                });
-            }
-
-            draw(ctx) {
-                this.particles.forEach(p => {
-                    ctx.globalAlpha = p.lifetime / p.maxLifetime;
-                    ctx.fillStyle = p.color;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fill();
-                });
-                ctx.globalAlpha = 1;
-            }
-        }
-
-        // Enemy types
-        const EnemyTypes = {
-            REGULAR: {
-                color: 'rgb(255, 50, 50)',
-                speed: 2,
-                health: 100,
-                size: ENEMY_SIZE,
-                points: 100
-            },
-            FAST: {
-                color: 'rgb(255, 255, 50)',
-                speed: 4,
-                health: 50,
-                size: ENEMY_SIZE * 0.7,
-                points: 150
-            },
-            TANK: {
-                color: 'rgb(150, 50, 50)',
-                speed: 1,
-                health: 200,
-                size: ENEMY_SIZE * 1.5,
-                points: 200
-            },
-            SPLITTER: {
-                color: 'rgb(255, 100, 255)',
-                speed: 2,
-                health: 120,
-                size: ENEMY_SIZE * 1.2,
-                points: 250,
-                splits: true
-            }
-        };
-
-        // Power-up types
-        const PowerUpTypes = {
-            HEALTH: {
-                color: 'rgb(50, 255, 50)',
-                effect: (player) => {
-                    player.health = Math.min(player.maxHealth, player.health + 50);
-                    return "Health +50";
-                }
-            },
-            TRIPLE_SHOT: {
-                color: 'rgb(255, 255, 50)',
-                effect: (player) => {
-                    player.tripleShot = true;
-                    player.tripleShotTimer = 300;
-                    return "Triple Shot Activated!";
-                }
-            },
-            SPEED_BOOST: {
-                color: 'rgb(50, 200, 255)',
-                effect: (player) => {
-                    player.speed *= 1.5;
-                    setTimeout(() => player.speed /= 1.5, 5000);
-                    return "Speed Boost!";
-                }
-            },
-            SHIELD: {
-                color: 'rgb(150, 150, 255)',
-                effect: (player) => {
-                    player.shield = true;
-                    player.shieldHealth = 100;
-                    return "Shield Activated!";
-                }
-            }
-        };
-
-        // Game state
+        // Initialize game state
         let gameState = {
             player: {
                 x: canvas.width / 2,
                 y: canvas.height / 2,
                 speed: 5,
-                baseSpeed: 5,
                 health: 100,
-                maxHealth: 100,
                 score: 0,
                 bullets: [],
                 dashCooldown: 0,
-                trail: [],
-                tripleShot: false,
-                tripleShotTimer: 0,
-                shield: false,
-                shieldHealth: 0,
-                level: 1,
-                upgrades: {
-                    damage: 1,
-                    fireRate: 1,
-                    bulletSpeed: 1
-                }
+                shootCooldown: 0,
+                energy: MAX_ENERGY,
+                trail: []
             },
             enemies: [],
-            powerUps: [],
-            particles: new ParticleSystem(),
             currentWave: 1,
             wavesTotal: 5,
-            enemiesPerWave: 12,
+            enemiesPerWave: 10,
             enemiesDefeated: 0,
             waveComplete: false,
             gameOver: false,
@@ -214,11 +67,10 @@
             keys: {},
             mousePos: { x: 0, y: 0 },
             mouseDown: false,
-            shootCooldown: 0,
-            messages: []
+            particles: []
         };
 
-        // Input handling
+        // Event Listeners
         document.addEventListener('keydown', (e) => gameState.keys[e.key.toLowerCase()] = true);
         document.addEventListener('keyup', (e) => gameState.keys[e.key.toLowerCase()] = false);
         canvas.addEventListener('mousemove', (e) => {
@@ -229,117 +81,49 @@
         canvas.addEventListener('mousedown', () => gameState.mouseDown = true);
         canvas.addEventListener('mouseup', () => gameState.mouseDown = false);
 
-        function spawnEnemy() {
-            const types = Object.keys(EnemyTypes);
-            const typeChances = {
-                REGULAR: 0.4,
-                FAST: 0.3,
-                TANK: 0.2,
-                SPLITTER: 0.1
+        function createParticle(x, y, color, speed, size, lifetime) {
+            const angle = Math.random() * Math.PI * 2;
+            return {
+                x,
+                y,
+                dx: Math.cos(angle) * speed * (0.5 + Math.random()),
+                dy: Math.sin(angle) * speed * (0.5 + Math.random()),
+                size: size * (0.5 + Math.random()),
+                color,
+                lifetime: lifetime * (0.8 + Math.random() * 0.4),
+                alpha: 1
             };
+        }
 
-            let enemyType;
-            const roll = Math.random();
-            let cumulative = 0;
-            for (const [type, chance] of Object.entries(typeChances)) {
-                cumulative += chance;
-                if (roll <= cumulative) {
-                    enemyType = type;
-                    break;
-                }
-            }
-
-            const template = EnemyTypes[enemyType];
+        function spawnEnemy() {
             const side = Math.floor(Math.random() * 4);
             let x, y;
             
             switch(side) {
-                case 0: x = Math.random() * canvas.width; y = -template.size; break;
-                case 1: x = canvas.width + template.size; y = Math.random() * canvas.height; break;
-                case 2: x = Math.random() * canvas.width; y = canvas.height + template.size; break;
-                case 3: x = -template.size; y = Math.random() * canvas.height; break;
+                case 0: x = Math.random() * canvas.width; y = -ENEMY_SIZE; break;
+                case 1: x = canvas.width + ENEMY_SIZE; y = Math.random() * canvas.height; break;
+                case 2: x = Math.random() * canvas.width; y = canvas.height + ENEMY_SIZE; break;
+                case 3: x = -ENEMY_SIZE; y = Math.random() * canvas.height; break;
             }
 
             return {
                 x,
                 y,
-                type: enemyType,
-                speed: template.speed * (1 + (gameState.currentWave - 1) * 0.2),
-                health: template.health * (1 + (gameState.currentWave - 1) * 0.3),
-                size: template.size,
-                color: template.color,
-                points: template.points,
-                splits: template.splits
+                speed: 2 + (gameState.currentWave - 1) * 0.5,
+                health: 100 + (gameState.currentWave - 1) * 20
             };
         }
 
-        function spawnPowerUp(x, y) {
-            const types = Object.keys(PowerUpTypes);
-            const type = types[Math.floor(Math.random() * types.length)];
-            
-            return {
-                x,
-                y,
-                type,
-                color: PowerUpTypes[type].color,
-                size: POWERUP_SIZE
-            };
-        }
-
-        function createBullet(startX, startY, targetX, targetY, angleOffset = 0) {
-            const angle = Math.atan2(targetY - startY, targetX - startX) + angleOffset;
-            const speed = 10 * gameState.player.upgrades.bulletSpeed;
+        function createBullet(startX, startY, targetX, targetY) {
+            const angle = Math.atan2(targetY - startY, targetX - startX);
+            const speed = 10;
             return {
                 x: startX,
                 y: startY,
                 dx: Math.cos(angle) * speed,
                 dy: Math.sin(angle) * speed,
-                damage: 50 * gameState.player.upgrades.damage,
                 lifetime: 60
             };
-        }
-
-        function showUpgradeMenu() {
-            const upgrades = [
-                { name: "Increase Damage", effect: () => gameState.player.upgrades.damage *= 1.2 },
-                { name: "Increase Fire Rate", effect: () => gameState.player.upgrades.fireRate *= 1.2 },
-                { name: "Increase Bullet Speed", effect: () => gameState.player.upgrades.bulletSpeed *= 1.2 },
-                { name: "Increase Max Health", effect: () => {
-                    gameState.player.maxHealth += 25;
-                    gameState.player.health = gameState.player.maxHealth;
-                }},
-                { name: "Improve Triple Shot Duration", effect: () => gameState.player.tripleShotTimer += 100 }
-            ];
-
-            upgradeOptions.innerHTML = '';
-            const availableUpgrades = [...upgrades]
-                .sort(() => Math.random() - 0.5)
-                .slice(0, 3);
-
-            availableUpgrades.forEach(upgrade => {
-                const button = document.createElement('button');
-                button.className = 'upgrade-button';
-                button.textContent = upgrade.name;
-                button.onclick = () => {
-                    upgrade.effect();
-                    upgradeMenu.style.display = 'none';
-                    startNextWave();
-                };
-                upgradeOptions.appendChild(button);
-            });
-
-            upgradeMenu.style.display = 'block';
-        }
-
-        function addMessage(text, color = 'white') {
-            gameState.messages.push({
-                text,
-                color,
-                x: gameState.player.x,
-                y: gameState.player.y - 30,
-                lifetime: 60,
-                dy: -1
-            });
         }
 
         function updateGame() {
@@ -355,21 +139,12 @@
             player.x = Math.max(PLAYER_SIZE, Math.min(canvas.width - PLAYER_SIZE, player.x));
             player.y = Math.max(PLAYER_SIZE, Math.min(canvas.height - PLAYER_SIZE, player.y));
 
-            // Update dash cooldown
+            // Update cooldowns and energy
             if (player.dashCooldown > 0) player.dashCooldown--;
+            if (player.shootCooldown > 0) player.shootCooldown--;
+            player.energy = Math.min(MAX_ENERGY, player.energy + ENERGY_REGEN);
 
-            // Update shoot cooldown
-            if (gameState.shootCooldown > 0) gameState.shootCooldown--;
-
-            // Update triple shot timer
-            if (player.tripleShotTimer > 0) {
-                player.tripleShotTimer--;
-                if (player.tripleShotTimer <= 0) {
-                    player.tripleShot = false;
-                }
-            }
-
-            // Dash
+            // Dash with particles
             if (gameState.keys[' '] && player.dashCooldown === 0) {
                 const dashDistance = 100;
                 const dx = (gameState.keys['d'] - gameState.keys['a']);
@@ -379,38 +154,65 @@
                     player.x += (dx / length) * dashDistance;
                     player.y += (dy / length) * dashDistance;
                     player.dashCooldown = 30;
-                    gameState.particles.emit(player.x, player.y, 'rgba(100, 100, 255, 0.5)', 20, 5);
+                    
+                    // Add dash particles
+                    for (let i = 0; i < 20; i++) {
+                        gameState.particles.push(createParticle(
+                            player.x, player.y,
+                            'rgba(100, 100, 255, 0.8)',
+                            3, 5, 30
+                        ));
+                    }
                 }
             }
 
-            // Shooting
-            if (gameState.mouseDown && gameState.shootCooldown <= 0) {
-                const shootAngles = player.tripleShot ? [-0.2, 0, 0.2] : [0];
-                shootAngles.forEach(angle => {
+            // Shooting with cooldown and energy
+            if (gameState.mouseDown) {
+                if (player.shootCooldown <= 0 && player.energy >= SHOOT_COST) {
+                    // Create bullet
                     player.bullets.push(createBullet(player.x, player.y, 
-                                                   gameState.mousePos.x, gameState.mousePos.y, angle));
-                });
-                gameState.shootCooldown = 10 / gameState.player.upgrades.fireRate;
+                                                   gameState.mousePos.x, gameState.mousePos.y));
+                    // Reset cooldown
+                    player.shootCooldown = SHOOT_COOLDOWN;
+                    // Consume energy
+                    player.energy -= SHOOT_COST;
+                    
+                    // Add muzzle flash particles
+                    for (let i = 0; i < 5; i++) {
+                        gameState.particles.push(createParticle(
+                            player.x, player.y,
+                            'rgba(255, 255, 100, 0.8)',
+                            2, 3, 15
+                        ));
+                    }
+                }
             }
 
+            // Update particles
+            gameState.particles = gameState.particles.filter(particle => {
+                particle.x += particle.dx;
+                particle.y += particle.dy;
+                particle.lifetime--;
+                particle.alpha = particle.lifetime / 30;
+                return particle.lifetime > 0;
+            });
+
             // Update bullets
-            player.bullets.forEach((bullet, i) => {
+            player.bullets = player.bullets.filter(bullet => {
                 bullet.x += bullet.dx;
                 bullet.y += bullet.dy;
                 bullet.lifetime--;
                 
-                if (bullet.lifetime <= 0 || 
-                    bullet.x < 0 || bullet.x > canvas.width || 
-                    bullet.y < 0 || bullet.y > canvas.height) {
-                    player.bullets.splice(i, 1);
+                // Add bullet trail particles
+                if (Math.random() < 0.3) {
+                    gameState.particles.push(createParticle(
+                        bullet.x, bullet.y,
+                        'rgba(255, 255, 0, 0.5)',
+                        1, 2, 20
+                    ));
                 }
-            });
-
-            // Update messages
-            gameState.messages = gameState.messages.filter(msg => {
-                msg.y += msg.dy;
-                msg.lifetime--;
-                return msg.lifetime > 0;
+                
+                return bullet.lifetime > 0;
             });
 
             // Spawn enemies
@@ -422,7 +224,7 @@
             }
 
             // Update enemies
-            gameState.enemies.forEach((enemy, i) => {
+            gameState.enemies = gameState.enemies.filter((enemy, i) => {
                 const dx = player.x - enemy.x;
                 const dy = player.y - enemy.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -430,158 +232,133 @@
                 enemy.x += (dx / dist) * enemy.speed;
                 enemy.y += (dy / dist) * enemy.speed;
 
+                // Enemy trail particles
+                if (Math.random() < 0.2) {
+                    gameState.particles.push(createParticle(
+                        enemy.x, enemy.y,
+                        'rgba(255, 50, 50, 0.5)',
+                        1, 3, 20
+                    ));
+                }
+
                 // Check collision with player
-                if (dist < (PLAYER_SIZE + enemy.size) / 2) {
-                    const damage = 20;
-                    if (player.shield) {
-                        player.shieldHealth -= damage;
-                        if (player.shieldHealth <= 0) {
-                            player.shield = false;
-                            addMessage("Shield broken!", "red");
-                        }
-                    } else {
-                        player.health -= damage;
-                        addMessage("-" + damage + " HP!", "red");
+                if (dist < (PLAYER_SIZE + ENEMY_SIZE) / 2) {
+                    player.health -= 10;
+                    
+                    // Collision particles
+                    for (let i = 0; i < 15; i++) {
+                        gameState.particles.push(createParticle(
+                            enemy.x, enemy.y,
+                            'rgba(255, 100, 100, 0.8)',
+                            3, 4, 25
+                        ));
                     }
-                    gameState.enemies.splice(i, 1);
-                    gameState.particles.emit(enemy.x, enemy.y, enemy.color, 15);
                     
                     if (player.health <= 0) {
                         gameState.gameOver = true;
                     }
+                    return false;
                 }
 
                 // Check collision with bullets
-                player.bullets.forEach((bullet, j) => {
+                for (let j = player.bullets.length - 1; j >= 0; j--) {
+                    const bullet = player.bullets[j];
                     const bulletDist = Math.sqrt(
                         Math.pow(bullet.x - enemy.x, 2) + 
                         Math.pow(bullet.y - enemy.y, 2)
                     );
                     
-                    if (bulletDist < (BULLET_SIZE + enemy.size) / 2) {
-                        enemy.health -= bullet.damage;
+                    if (bulletDist < (BULLET_SIZE + ENEMY_SIZE) / 2) {
                         player.bullets.splice(j, 1);
-                        gameState.particles.emit(bullet.x, bullet.y, 'yellow', 5);
+                        player.score += 100 * gameState.currentWave;
+                        gameState.enemiesDefeated++;
                         
-                        if (enemy.health <= 0) {
-                            gameState.enemies.splice(i, 1);
-                            player.score += enemy.points * gameState.currentWave;
-                            gameState.enemiesDefeated++;
-                            gameState.particles.emit(enemy.x, enemy.y, enemy.color, 20);
-                            
-                            // Chance to spawn power-up
-                            if (Math.random() < 0.2) {
-                                gameState.powerUps.push(spawnPowerUp(enemy.x, enemy.y));
-                            }
-
-                            // Handle splitter enemies
-                            if (enemy.splits) {
-                                for (let k = 0; k < 2; k++) {
-                                    const smallEnemy = {
-                                        x: enemy.x,
-                                        y: enemy.y,
-                                        type: 'FAST',
-                                        ...EnemyTypes.FAST,
-                                        size: ENEMY_SIZE * 0.5
-                                    };
-                                    gameState.enemies.push(smallEnemy);
-                                }
-                            }
-                            
-                            if (gameState.enemiesDefeated >= gameState.enemiesPerWave) {
-                                gameState.waveComplete = true;
-                                if (gameState.currentWave >= gameState.wavesTotal) {
-                                    gameState.gameWon = true;
-                                } else {
-                                    showUpgradeMenu();
-                                }
+                        // Explosion particles
+                        for (let i = 0; i < 20; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                'rgba(255, 150, 50, 0.8)',
+                                4, 5, 30
+                            ));
+                        }
+                        
+                        if (gameState.enemiesDefeated >= gameState.enemiesPerWave) {
+                            gameState.waveComplete = true;
+                            if (gameState.currentWave >= gameState.wavesTotal) {
+                                gameState.gameWon = true;
+                            } else {
+                                setTimeout(startNextWave, 3000);
                             }
                         }
+                        return false;
                     }
-                });
-            });
-
-            // Update power-ups
-            gameState.powerUps.forEach((powerUp, i) => {
-                const dist = Math.sqrt(
-                    Math.pow(powerUp.x - player.x, 2) + 
-                    Math.pow(powerUp.y - player.y, 2)
-                );
-                
-                if (dist < (PLAYER_SIZE + powerUp.size) / 2) {
-                    const message = PowerUpTypes[powerUp.type].effect(player);
-                    addMessage(message, powerUp.color);
-                    gameState.particles.emit(powerUp.x, powerUp.y, powerUp.color, 15);
-                    gameState.powerUps.splice(i, 1);
                 }
+                return true;
             });
-
-            // Update particle systems
-            gameState.particles.update();
 
             // Update trail
             player.trail.push({x: player.x, y: player.y});
             if (player.trail.length > 10) player.trail.shift();
         }
 
+        function startNextWave() {
+            gameState.currentWave++;
+            gameState.enemiesDefeated = 0;
+            gameState.waveComplete = false;
+            gameState.enemies = [];
+            gameState.player.health = Math.min(100, gameState.player.health + 30);
+        }
+
         function drawGame() {
+            // Clear canvas
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw grid background
-            ctx.strokeStyle = 'rgba(50, 50, 50, 0.5)';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < canvas.width; i += 50) {
+            // Draw particles
+            gameState.particles.forEach(particle => {
                 ctx.beginPath();
-                ctx.moveTo(i, 0);
-                ctx.lineTo(i, canvas.height);
-                ctx.stroke();
-            }
-            for (let i = 0; i < canvas.height; i += 50) {
-                ctx.beginPath();
-                ctx.moveTo(0, i);
-                ctx.lineTo(canvas.width, i);
-                ctx.stroke();
-            }
-
-            // Draw power-ups
-            gameState.powerUps.forEach(powerUp => {
-                ctx.beginPath();
-                ctx.arc(powerUp.x, powerUp.y, powerUp.size/2, 0, Math.PI * 2);
-                ctx.fillStyle = powerUp.color;
+                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                ctx.fillStyle = particle.color.replace(')', `, ${particle.alpha})`);
                 ctx.fill();
-                ctx.strokeStyle = 'white';
-                ctx.stroke();
             });
 
             // Draw player trail
             gameState.player.trail.forEach((pos, i) => {
                 ctx.beginPath();
                 ctx.arc(pos.x, pos.y, PLAYER_SIZE/2, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(50, 50, 255, ${i / gameState.player.trail.length * 0.5})`;
+                const gradient = ctx.createRadialGradient(
+                    pos.x, pos.y, 0,
+                    pos.x, pos.y, PLAYER_SIZE/2
+                );
+                gradient.addColorStop(0, `rgba(50, 50, 255, ${i / gameState.player.trail.length * 0.3})`);
+                gradient.addColorStop(1, 'rgba(50, 50, 255, 0)');
+                ctx.fillStyle = gradient;
                 ctx.fill();
             });
 
             // Draw player
             ctx.beginPath();
             ctx.arc(gameState.player.x, gameState.player.y, PLAYER_SIZE/2, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgb(50, 50, 255)';
+            const playerGradient = ctx.createRadialGradient(
+                gameState.player.x, gameState.player.y, 0,
+                gameState.player.x, gameState.player.y, PLAYER_SIZE/2
+            );
+            playerGradient.addColorStop(0, 'rgb(150, 150, 255)');
+            playerGradient.addColorStop(1, 'rgb(50, 50, 255)');
+            ctx.fillStyle = playerGradient;
             ctx.fill();
-
-            // Draw shield if active
-            if (gameState.player.shield) {
-                ctx.beginPath();
-                ctx.arc(gameState.player.x, gameState.player.y, PLAYER_SIZE/2 + 10, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(100, 100, 255, ${gameState.player.shieldHealth / 100})`;
-                ctx.lineWidth = 3;
-                ctx.stroke();
-            }
 
             // Draw enemies
             gameState.enemies.forEach(enemy => {
                 ctx.beginPath();
-                ctx.arc(enemy.x, enemy.y, enemy.size/2, 0, Math.PI * 2);
-                ctx.fillStyle = enemy.color;
+                ctx.arc(enemy.x, enemy.y, ENEMY_SIZE/2, 0, Math.PI * 2);
+                const enemyGradient = ctx.createRadialGradient(
+                    enemy.x, enemy.y, 0,
+                    enemy.x, enemy.y, ENEMY_SIZE/2
+                );
+                enemyGradient.addColorStop(0, 'rgb(255, 150, 150)');
+                enemyGradient.addColorStop(1, 'rgb(255, 50, 50)');
+                ctx.fillStyle = enemyGradient;
                 ctx.fill();
             });
 
@@ -593,73 +370,64 @@
                 ctx.fill();
             });
 
-            // Draw particles
-            gameState.particles.draw(ctx);
-
-            // Draw messages
-            gameState.messages.forEach(msg => {
-                ctx.fillStyle = msg.color;
-                ctx.globalAlpha = msg.lifetime / 60;
-                ctx.font = '16px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(msg.text, msg.x, msg.y);
-            });
-            ctx.globalAlpha = 1;
-
             // Draw UI
+            // Health bar
+            ctx.fillStyle = 'rgba(50, 50, 50, 0.5)';
+            ctx.fillRect(10, 10, 200, 20);
+            ctx.fillStyle = `rgb(${255 - gameState.player.health * 2}, ${gameState.player.health * 2}, 50)`;
+            ctx.fillRect(10, 10, 200 * (gameState.player.health / 100), 20);
+
+            // Energy bar
+            ctx.fillStyle = 'rgba(50, 50, 50, 0.5)';
+            ctx.fillRect(10, 40, 200, 20);
+            ctx.fillStyle = `rgb(50, 150, ${gameState.player.energy * 2.55})`;
+            ctx.fillRect(10, 40, 200 * (gameState.player.energy / MAX_ENERGY), 20);
+
+            // Stats
             ctx.fillStyle = 'white';
             ctx.font = '20px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(`Health: ${Math.ceil(gameState.player.health)}`, 10, 30);
-            ctx.fillText(`Score: ${gameState.player.score}`, 10, 60);
-            ctx.fillText(`Wave: ${gameState.currentWave}/${gameState.wavesTotal}`, 10, 90);
-            ctx.fillText(`Enemies: ${gameState.enemiesDefeated}/${gameState.enemiesPerWave}`, 10, 120);
+            ctx.fillText(`Score: ${gameState.player.score}`, 10, 80);
+            ctx.fillText(`Wave: ${gameState.currentWave}/${gameState.wavesTotal}`, 10, 110);
+            ctx.fillText(`Enemies: ${gameState.enemiesDefeated}/${gameState.enemiesPerWave}`, 10, 140);
 
-            if (gameState.player.tripleShot) {
-                ctx.fillText(`Triple Shot: ${Math.ceil(gameState.player.tripleShotTimer / 60)}s`, 10, 150);
-            }
-
-            if (gameState.waveComplete && !gameState.gameWon && !upgradeMenu.style.display) {
-                ctx.fillStyle = 'white';
+            // Game state messages
+            if (gameState.waveComplete && !gameState.gameWon) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
                 ctx.font = '30px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(`Wave ${gameState.currentWave} Complete!`, 
-                           canvas.width/2, canvas.height/2);
+                ctx.fillText(`Wave ${gameState.currentWave} Complete!`, canvas.width/2, canvas.height/2);
+                ctx.font = '20px Arial';
+                ctx.fillText('Next wave incoming...', canvas.width/2, canvas.height/2 + 40);
+                ctx.textAlign = 'left';
             }
 
             if (gameState.gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'white';
+                ctx.fillStyle = 'red';
                 ctx.font = '40px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText('Game Over!', canvas.width/2, canvas.height/2);
+                ctx.fillStyle = 'white';
                 ctx.font = '20px Arial';
                 ctx.fillText(`Final Score: ${gameState.player.score}`, canvas.width/2, canvas.height/2 + 40);
                 ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2 + 80);
+                ctx.textAlign = 'left';
             }
 
             if (gameState.gameWon) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'white';
+                ctx.fillStyle = 'gold';
                 ctx.font = '40px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText('Victory!', canvas.width/2, canvas.height/2);
+                ctx.fillStyle = 'white';
                 ctx.font = '20px Arial';
                 ctx.fillText(`Final Score: ${gameState.player.score}`, canvas.width/2, canvas.height/2 + 40);
                 ctx.fillText('Press R to play again', canvas.width/2, canvas.height/2 + 80);
+                ctx.textAlign = 'left';
             }
-        }
-
-        function startNextWave() {
-            gameState.currentWave++;
-            gameState.enemiesDefeated = 0;
-            gameState.waveComplete = false;
-            gameState.enemies = [];
-            gameState.powerUps = [];
-            gameState.player.health = Math.min(gameState.player.maxHealth, 
-                                             gameState.player.health + 30);
         }
 
         function resetGame() {
@@ -668,30 +436,18 @@
                     x: canvas.width / 2,
                     y: canvas.height / 2,
                     speed: 5,
-                    baseSpeed: 5,
                     health: 100,
-                    maxHealth: 100,
                     score: 0,
                     bullets: [],
                     dashCooldown: 0,
-                    trail: [],
-                    tripleShot: false,
-                    tripleShotTimer: 0,
-                    shield: false,
-                    shieldHealth: 0,
-                    level: 1,
-                    upgrades: {
-                        damage: 1,
-                        fireRate: 1,
-                        bulletSpeed: 1
-                    }
+                    shootCooldown: 0,
+                    energy: MAX_ENERGY,
+                    trail: []
                 },
                 enemies: [],
-                powerUps: [],
-                particles: new ParticleSystem(),
                 currentWave: 1,
                 wavesTotal: 5,
-                enemiesPerWave: 12,
+                enemiesPerWave: 10,
                 enemiesDefeated: 0,
                 waveComplete: false,
                 gameOver: false,
@@ -699,8 +455,7 @@
                 keys: gameState.keys,
                 mousePos: gameState.mousePos,
                 mouseDown: gameState.mouseDown,
-                shootCooldown: 0,
-                messages: []
+                particles: []
             };
         }
 
@@ -719,3 +474,6 @@
         }
 
         gameLoop();
+    </script>
+</body>
+</html>
