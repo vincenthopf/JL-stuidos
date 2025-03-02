@@ -42,7 +42,12 @@
         .content {
             text-align: center;
             z-index: 10;
-            max-width: 500px;
+            max-width: 600px;
+            background-color: rgba(14, 14, 24, 0.7);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
         
         .logo {
@@ -54,6 +59,62 @@
             color: transparent;
             letter-spacing: 1px;
             font-weight: bold;
+        }
+        
+        .instructions {
+            margin-bottom: 2rem;
+            text-align: left;
+        }
+        
+        .instructions h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.5rem;
+            letter-spacing: 1px;
+        }
+        
+        .instruction-card {
+            background-color: rgba(30, 30, 46, 0.6);
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+        
+        .instruction-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+        
+        .key-control {
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            padding: 0.4rem 0.8rem;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: white;
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .key-action {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.9);
+            flex: 1;
+            margin-left: 1rem;
+        }
+        
+        .instruction-tip {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .instruction-tip p {
+            margin-bottom: 0.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.95rem;
         }
         
         .play-button {
@@ -112,7 +173,36 @@
     <canvas id="network-canvas"></canvas>
 
     <div class="content">
-        <a href="game.html" class="play-button">Play</a>
+        <div class="instructions">
+            <h2>How to Play</h2>
+            <div class="instruction-card">
+                <div class="instruction-item">
+                    <span class="key-control">W A S D</span>
+                    <span class="key-action">Move your ship in all directions</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">MOUSE</span>
+                    <span class="key-action">Aim your weapons</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">CLICK</span>
+                    <span class="key-action">Fire weapons</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">SPACEBAR</span>
+                    <span class="key-action">Dash (when available)</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">R</span>
+                    <span class="key-action">Restart game (when game over)</span>
+                </div>
+                <div class="instruction-tip">
+                    <p>Destroy enemy ships and collect power-ups to increase your score!</p>
+                    <p>Avoid enemy fire and prevent enemies from reaching the bottom.</p>
+                </div>
+            </div>
+        </div>
+        <a href="game.html" class="play-button">Play Now</a>
     </div>
     
     <div class="copyright">
