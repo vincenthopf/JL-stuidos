@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JL Studios | Modern Game Development</title>
+    <title>JL Studios</title>
     <style>
         :root {
             --primary: #0e0e18;
             --secondary: #1e1e2e;
-            --accent: #7e40ff; /* Purple accent */
-            --accent-alt: #ff4070; /* Pink accent */
+            --accent: #7e40ff;
+            --accent-alt: #ff4070;
             --text: #ffffff;
-            --dark-accent: #18182a;
         }
         
         * {
@@ -25,260 +24,50 @@
             background-color: var(--primary);
             color: var(--text);
             min-height: 100vh;
-            line-height: 1.6;
-            overflow-x: hidden;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
-        .interactive-background {
+        canvas {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             z-index: -1;
-            overflow: hidden;
         }
         
-        .background-element {
-            position: absolute;
-            border-radius: 50%;
-            transition: transform 0.3s ease-out;
-        }
-        
-        header {
-            background-color: rgba(14, 14, 24, 0.8);
-            padding: 1.5rem 0;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            position: fixed;
-            top: 0;
-            width: 100%;
-            z-index: 100;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-        
-        main.container {
-            padding-top: 120px;
-            padding-bottom: 4rem;
-        }
-        
-        h1 {
-            font-size: 2.5rem;
+        .content {
             text-align: center;
+            z-index: 10;
+            max-width: 500px;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
             background: linear-gradient(90deg, var(--accent), var(--accent-alt));
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
             letter-spacing: 1px;
-        }
-        
-        .hero-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            margin-bottom: 5rem;
-            position: relative;
-            min-height: 60vh;
-            display: flex;
-            justify-content: center;
-        }
-        
-        .hero-content {
-            max-width: 800px;
-            z-index: 2;
-        }
-        
-        .hero-title {
-            font-size: 4.5rem;
-            margin-bottom: 1rem;
-            color: var(--text);
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            position: relative;
-            display: inline-block;
-            font-weight: 800;
-        }
-        
-        .hero-title::after {
-            content: '';
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100px;
-            height: 4px;
-            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
-            border-radius: 2px;
-        }
-        
-        .hero-subtitle {
-            font-size: 1.4rem;
-            max-width: 650px;
-            margin: 2.5rem auto;
-            line-height: 1.8;
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .studio-showcase {
-            background: rgba(30, 30, 46, 0.6);
-            border-radius: 16px;
-            padding: 3rem;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-            width: 100%;
-            max-width: 900px;
-            margin: 0 auto 5rem auto;
-        }
-        
-        .studio-showcase::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            z-index: -1;
-            background: linear-gradient(45deg, var(--accent), var(--accent-alt), var(--accent), var(--accent-alt));
-            background-size: 400%;
-            border-radius: 16px;
-            opacity: 0.4;
-            animation: gradient-shift 15s linear infinite;
-        }
-        
-        @keyframes gradient-shift {
-            0% { background-position: 0 0; }
-            50% { background-position: 400% 0; }
-            100% { background-position: 0 0; }
-        }
-        
-        .section-title {
-            font-size: 2.5rem;
-            margin-bottom: 1.5rem;
-            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
             font-weight: bold;
-        }
-        
-        .studio-description {
-            margin-bottom: 2.5rem;
-            font-size: 1.1rem;
-            line-height: 1.8;
-            text-align: center;
-        }
-        
-        .capabilities-list {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 2rem;
-            margin: 2rem 0;
-            width: 100%;
-        }
-        
-        .capability-item {
-            display: flex;
-            align-items: flex-start;
-            font-size: 1.1rem;
-            background: rgba(14, 14, 24, 0.5);
-            padding: 1.5rem;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(5px);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .capability-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        .capability-icon {
-            margin-right: 15px;
-            color: var(--accent);
-            font-size: 1.5rem;
-            min-width: 25px;
-            text-align: center;
-        }
-        
-        .capability-content {
-            flex: 1;
-        }
-        
-        .capability-title {
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: var(--accent-alt);
-        }
-        
-        .games-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 2rem;
-            width: 100%;
-        }
-        
-        .game-card {
-            background: rgba(30, 30, 46, 0.6);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s ease;
-            position: relative;
-        }
-        
-        .game-card:hover {
-            transform: translateY(-10px);
-        }
-        
-        .game-banner {
-            height: 180px;
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(45deg, var(--accent-alt), var(--accent));
-        }
-        
-        .game-content {
-            padding: 1.5rem;
-        }
-        
-        .game-title {
-            font-size: 1.5rem;
-            margin-bottom: 0.75rem;
-            color: var(--text);
-        }
-        
-        .game-description {
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 1.5rem;
         }
         
         .play-button {
             display: inline-block;
             background: linear-gradient(90deg, var(--accent), var(--accent-alt));
             color: var(--text);
-            padding: 0.8rem 2rem;
+            padding: 1rem 3rem;
             border-radius: 50px;
             text-decoration: none;
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 1.2rem;
             letter-spacing: 1px;
             text-transform: uppercase;
-            transition: all 0.3s ease;
+            transition: all 0.3s ease, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border: none;
             position: relative;
             overflow: hidden;
@@ -304,306 +93,472 @@
         }
         
         .play-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 7px 20px rgba(126, 64, 255, 0.5);
+            transform: translateY(-5px) scale(1.1);
+            box-shadow: 0 15px 40px rgba(126, 64, 255, 0.6);
+            letter-spacing: 3px;
         }
         
-        .contact-section {
+        .copyright {
+            position: fixed;
+            bottom: 1rem;
+            width: 100%;
             text-align: center;
-            margin-top: 4rem;
-        }
-        
-        .contact-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-top: 2rem;
-            flex-wrap: wrap;
-        }
-        
-        .footer {
-            background-color: rgba(14, 14, 24, 0.8);
-            text-align: center;
-            padding: 2rem 0;
-            margin-top: 4rem;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        
-        .footer p {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 0.9rem;
-        }
-        
-        @media (max-width: 768px) {
-            .main.container {
-                padding-top: 100px;
-            }
-            
-            .hero-title {
-                font-size: 2.8rem;
-            }
-            
-            .hero-subtitle {
-                font-size: 1.1rem;
-            }
-            
-            .studio-showcase {
-                padding: 2rem 1.5rem;
-            }
-            
-            .capabilities-list {
-                grid-template-columns: 1fr;
-                gap: 1rem;
-            }
-            
-            .section-title {
-                font-size: 2rem;
-            }
-            
-            .contact-buttons {
-                flex-direction: column;
-                gap: 1rem;
-            }
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
-    <div class="interactive-background" id="interactive-background">
-        <!-- Interactive elements will be added with JavaScript -->
-    </div>
+    <canvas id="network-canvas"></canvas>
 
-    <header>
-        <div class="container">
-            <h1>JL Studios</h1>
-        </div>
-    </header>
+    <div class="content">
+        <a href="game.html" class="play-button">Play</a>
+    </div>
     
-    <main class="container">
-        <section class="hero-section">
-            <div class="hero-content">
-                <h2 class="hero-title">Creative Game Development</h2>
-                <p class="hero-subtitle">We craft immersive gaming experiences with cutting-edge technology and creative design. From casual mobile games to rich interactive worlds, our studio brings your gaming vision to life.</p>
-                <a href="#games" class="play-button">View Our Work</a>
-            </div>
-        </section>
-        
-        <div class="studio-showcase">
-            <h3 class="section-title">What We Do</h3>
-            <div class="studio-description">
-                <p>At JL Studios, we combine technical expertise with creative vision to develop engaging games across multiple platforms. Our team of passionate developers, artists, and designers work together to create memorable gaming experiences.</p>
-            </div>
-            
-            <div class="capabilities-list">
-                <div class="capability-item">
-                    <div class="capability-icon">🎮</div>
-                    <div class="capability-content">
-                        <div class="capability-title">Game Development</div>
-                        <p>We develop engaging games for various platforms including web, mobile, and desktop.</p>
-                    </div>
-                </div>
-                
-                <div class="capability-item">
-                    <div class="capability-icon">🎨</div>
-                    <div class="capability-content">
-                        <div class="capability-title">Creative Design</div>
-                        <p>Our artistic team creates stunning visuals and compelling character designs.</p>
-                    </div>
-                </div>
-                
-                <div class="capability-item">
-                    <div class="capability-icon">⚙️</div>
-                    <div class="capability-content">
-                        <div class="capability-title">Technical Innovation</div>
-                        <p>We employ cutting-edge technologies to push the boundaries of interactive experiences.</p>
-                    </div>
-                </div>
-                
-                <div class="capability-item">
-                    <div class="capability-icon">🔊</div>
-                    <div class="capability-content">
-                        <div class="capability-title">Sound Design</div>
-                        <p>Immersive audio experiences that enhance gameplay and emotional connection.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <h3 class="section-title" id="games">Our Games</h3>
-        
-        <div class="games-grid">
-            <div class="game-card">
-                <div class="game-banner"></div>
-                <div class="game-content">
-                    <h4 class="game-title">Space Invaders</h4>
-                    <p class="game-description">Navigate through waves of enemies in this intense space shooter with beautiful visuals and challenging gameplay.</p>
-                    <a href="game.html" class="play-button">Play Now</a>
-                </div>
-            </div>
-            
-            <div class="game-card">
-                <div class="game-banner"></div>
-                <div class="game-content">
-                    <h4 class="game-title">Coming Soon</h4>
-                    <p class="game-description">Our next exciting project is under development. Stay tuned for more updates!</p>
-                    <a href="#" class="play-button" style="opacity: 0.7; pointer-events: none;">In Development</a>
-                </div>
-            </div>
-            
-            <div class="game-card">
-                <div class="game-banner"></div>
-                <div class="game-content">
-                    <h4 class="game-title">Coming Soon</h4>
-                    <p class="game-description">Our team is working on another innovative game concept. More details coming soon.</p>
-                    <a href="#" class="play-button" style="opacity: 0.7; pointer-events: none;">In Development</a>
-                </div>
-            </div>
-        </div>
-        
-        <section class="contact-section">
-            <h3 class="section-title">Get In Touch</h3>
-            <p class="hero-subtitle">Interested in working with us or learning more about our games?</p>
-            <div class="contact-buttons">
-                <a href="#" class="play-button">Contact Us</a>
-                <a href="#" class="play-button">Join Our Team</a>
-            </div>
-        </section>
-    </main>
-    
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2023 JL Studios. All rights reserved.</p>
-        </div>
-    </footer>
+    <div class="copyright">
+        &copy; 2025 JL Studios. All rights reserved.
+    </div>
     
     <script>
-        // Interactive background animation
-        const background = document.getElementById('interactive-background');
-        const elements = [];
-        const numElements = 100;
-        const colors = [
-            'rgba(126, 64, 255, 0.5)', // Purple
-            'rgba(255, 64, 112, 0.5)', // Pink
-            'rgba(64, 190, 255, 0.5)',  // Blue
-            'rgba(255, 190, 64, 0.5)'   // Yellow
+        // Network background animation
+        const canvas = document.getElementById('network-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas to full window size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        // Node properties
+        const nodes = [];
+        const nodeCount = 150;
+        const nodeConnectionDistance = 150;
+        const mouseConnectionDistance = 200;
+        const hoverMouseConnectionDistance = 300; // Increased connection distance while hovering
+        
+        // Button hover state
+        let isButtonHovered = false;
+        const speedMultiplier = 2.5;
+        
+        // Dispersion effect (when unhover button)
+        let isDispersing = false;
+        let disperseOriginX = 0;
+        let disperseOriginY = 0;
+        let disperseStartTime = 0;
+        const disperseDuration = 1500; // 1.5 seconds for the disperse effect
+        const disperseStrength = 3; // How strongly nodes disperse
+        
+        // Shockwave effect
+        let isShockwaveActive = false;
+        let shockwaveRadius = 0;
+        let shockwaveWidth = 2;
+        let shockwaveStartTime = 0;
+        const shockwaveDuration = 1000; // 1 second
+        const shockwaveMaxRadius = 500; // Maximum radius in pixels
+        
+        // Node colors
+        const nodeColors = [
+            'rgba(126, 64, 255, 0.7)', // Purple
+            'rgba(255, 64, 112, 0.7)', // Pink
+            'rgba(64, 190, 255, 0.7)'  // Blue
         ];
-        const shapes = ['circle', 'square', 'triangle', 'diamond'];
         
-        // Mouse position
-        let mouseX = 0;
-        let mouseY = 0;
-        let isMouseMoving = false;
-        let mouseTimeout;
+        // Mouse position (starts offscreen)
+        let mouseX = -100;
+        let mouseY = -100;
+        let isMouseOnPage = false;
         
-        // Create elements
-        for (let i = 0; i < numElements; i++) {
-            const element = document.createElement('div');
-            element.classList.add('background-element');
-            
-            // Random properties
-            const size = Math.random() * 20 + 5;
-            const x = Math.random() * window.innerWidth;
-            const y = Math.random() * window.innerHeight;
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const shape = shapes[Math.floor(Math.random() * shapes.length)];
-            const opacity = Math.random() * 0.5 + 0.1;
-            const speed = Math.random() * 1 + 0.5;
-            
-            // Set element style
-            element.style.width = `${size}px`;
-            element.style.height = `${size}px`;
-            element.style.left = `${x}px`;
-            element.style.top = `${y}px`;
-            element.style.backgroundColor = color;
-            element.style.opacity = opacity;
-            
-            // Apply different shapes
-            if (shape === 'square') {
-                element.style.borderRadius = '2px';
-            } else if (shape === 'triangle') {
-                element.style.width = '0';
-                element.style.height = '0';
-                element.style.backgroundColor = 'transparent';
-                element.style.borderLeft = `${size/2}px solid transparent`;
-                element.style.borderRight = `${size/2}px solid transparent`;
-                element.style.borderBottom = `${size}px solid ${color}`;
-            } else if (shape === 'diamond') {
-                element.style.transform = 'rotate(45deg)';
-                element.style.borderRadius = '2px';
-            }
-            
-            background.appendChild(element);
-            
-            elements.push({
-                element: element,
-                x: x,
-                y: y,
-                size: size,
-                speedX: (Math.random() - 0.5) * speed,
-                speedY: (Math.random() - 0.5) * speed,
-                originalX: x,
-                originalY: y
+        // Create nodes
+        for (let i = 0; i < nodeCount; i++) {
+            const size = Math.random() * 4 + 2;
+            nodes.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: size,
+                color: nodeColors[Math.floor(Math.random() * nodeColors.length)],
+                originalColor: nodeColors[Math.floor(Math.random() * nodeColors.length)], // Store original color
+                speedX: (Math.random() - 0.5) * 0.5,
+                speedY: (Math.random() - 0.5) * 0.5,
+                originalSpeedX: (Math.random() - 0.5) * 0.5,
+                originalSpeedY: (Math.random() - 0.5) * 0.5,
+                glow: Math.random() > 0.7, // Some nodes will glow
+                pulseSpeed: Math.random() * 0.03 + 0.01,
+                pulseAmount: 0,
+                disperseIntensity: 0 // Track dispersion intensity for each node
             });
         }
         
         // Track mouse movement
         document.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-            isMouseMoving = true;
-            
-            clearTimeout(mouseTimeout);
-            mouseTimeout = setTimeout(() => {
-                isMouseMoving = false;
-            }, 100);
+            try {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+                isMouseOnPage = true;
+            } catch(err) {
+                console.error("Mouse move error:", err);
+            }
         });
+        
+        // Track when mouse leaves the page
+        document.addEventListener('mouseout', (e) => {
+            try {
+                // Only set mouse as off-page if it's actually leaving the document
+                if (!e.relatedTarget || e.relatedTarget.nodeName === 'HTML') {
+                    isMouseOnPage = false;
+                }
+            } catch(err) {
+                console.error("Mouse out error:", err);
+            }
+        });
+        
+        // Track button hover
+        const playButton = document.querySelector('.play-button');
+        playButton.addEventListener('mouseenter', (e) => {
+            try {
+                isButtonHovered = true;
+                
+                // Speed up all nodes
+                nodes.forEach(node => {
+                    node.speedX = node.originalSpeedX * speedMultiplier;
+                    node.speedY = node.originalSpeedY * speedMultiplier;
+                });
+                
+                // Update mouse position to button position if not on page
+                if (!isMouseOnPage) {
+                    mouseX = e.clientX;
+                    mouseY = e.clientY;
+                    isMouseOnPage = true;
+                }
+            } catch(err) {
+                console.error("Button hover enter error:", err);
+            }
+        });
+        
+        playButton.addEventListener('mouseleave', (e) => {
+            try {
+                isButtonHovered = false;
+                
+                // Start the dispersion effect
+                isDispersing = true;
+                // Store button position as the origin of dispersion
+                const rect = playButton.getBoundingClientRect();
+                disperseOriginX = rect.left + rect.width / 2;
+                disperseOriginY = rect.top + rect.height / 2;
+                disperseStartTime = Date.now();
+                
+                // Start shockwave
+                isShockwaveActive = true;
+                shockwaveRadius = 0;
+                shockwaveStartTime = Date.now();
+                
+                // Return nodes to normal speed (will be temporarily overridden by dispersion)
+                nodes.forEach(node => {
+                    node.speedX = node.originalSpeedX;
+                    node.speedY = node.originalSpeedY;
+                    // Store original color if needed
+                    if (!node.originalColor) {
+                        node.originalColor = node.color;
+                    }
+                });
+            } catch(err) {
+                console.error("Button hover leave error:", err);
+            }
+        });
+        
+        // Draw a node
+        function drawNode(node) {
+            try {
+                ctx.beginPath();
+                
+                // Add pulsing effect to some nodes
+                let radius = node.radius;
+                if (node.glow) {
+                    // Ensure pulseSpeed is not zero to prevent animation from stopping
+                    const safePulseSpeed = Math.max(0.01, node.pulseSpeed);
+                    node.pulseAmount += safePulseSpeed * (isButtonHovered ? 2 : 1); // Faster pulsing when button hovered
+                    // More dramatic pulse when button is hovered
+                    const pulseIntensity = isButtonHovered ? 2.5 : 1.5;
+                    // Add extra pulse intensity during dispersion
+                    const dispersePulse = node.disperseIntensity > 0 ? node.disperseIntensity * 2 : 0;
+                    radius += Math.sin(node.pulseAmount) * (pulseIntensity + dispersePulse);
+                }
+                
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = node.color;
+                ctx.fill();
+                
+                // Add glow effect
+                if (node.glow || node.disperseIntensity > 0) {
+                    // More glow during dispersion
+                    const disperseGlow = node.disperseIntensity > 0 ? node.disperseIntensity * 15 : 0;
+                    // More glow when button is hovered
+                    ctx.shadowBlur = isButtonHovered ? 25 : 15 + disperseGlow;
+                    ctx.shadowColor = node.color;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            } catch(err) {
+                console.error("Draw node error:", err);
+            }
+        }
+        
+        // Draw a connection between nodes
+        function drawConnection(node1, node2, distance, maxDistance) {
+            try {
+                const opacity = 1 - (distance / maxDistance);
+                // Increase opacity when button is hovered
+                const finalOpacity = isButtonHovered ? Math.min(1, opacity * 1.5) : opacity;
+                
+                // Get the color values for the gradient
+                let color1 = node1.color.replace(/[^\d,]/g, '').split(',');
+                let color2 = node2.color.replace(/[^\d,]/g, '').split(',');
+                
+                // Create a gradient for more vibrant connections
+                const gradient = ctx.createLinearGradient(node1.x, node1.y, node2.x, node2.y);
+                gradient.addColorStop(0, `rgba(${color1[0]}, ${color1[1]}, ${color1[2]}, ${finalOpacity})`);
+                gradient.addColorStop(1, `rgba(${color2[0]}, ${color2[1]}, ${color2[2]}, ${finalOpacity})`);
+                
+                ctx.beginPath();
+                ctx.moveTo(node1.x, node1.y);
+                ctx.lineTo(node2.x, node2.y);
+                ctx.strokeStyle = gradient;
+                // Make lines thicker when button is hovered
+                ctx.lineWidth = isButtonHovered ? finalOpacity * 2 : finalOpacity * 1.5;
+                ctx.stroke();
+            } catch(err) {
+                console.error("Draw connection error:", err);
+            }
+        }
         
         // Animation loop
         function animate() {
-            elements.forEach(item => {
-                let newX = item.x;
-                let newY = item.y;
+            try {
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Regular floating movement
-                newX += item.speedX;
-                newY += item.speedY;
-                
-                // Boundary check
-                if (newX < -item.size || newX > window.innerWidth + item.size) {
-                    item.speedX = -item.speedX;
-                }
-                if (newY < -item.size || newY > window.innerHeight + item.size) {
-                    item.speedY = -item.speedY;
-                }
-                
-                // Mouse interaction
-                if (isMouseMoving) {
-                    const dx = mouseX - item.x;
-                    const dy = mouseY - item.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
+                // Handle dispersion effect if active
+                let disperseEffect = 0;
+                if (isDispersing) {
+                    const elapsedTime = Date.now() - disperseStartTime;
+                    const progress = Math.min(1, elapsedTime / disperseDuration);
                     
-                    // Elements are attracted to mouse
-                    if (distance < 300) {
-                        const force = 10 / distance;
-                        newX += dx * force * 0.03;
-                        newY += dy * force * 0.03;
+                    // Disperse strength decreases over time (strongest at start)
+                    disperseEffect = disperseStrength * (1 - progress);
+                    
+                    // End the effect after duration
+                    if (progress >= 1) {
+                        isDispersing = false;
                     }
-                } else {
-                    // Gradually return to original flow
-                    const dx = item.originalX - item.x;
-                    const dy = item.originalY - item.y;
-                    newX += dx * 0.01;
-                    newY += dy * 0.01;
                 }
                 
-                // Update position
-                item.x = newX;
-                item.y = newY;
-                item.element.style.left = `${newX}px`;
-                item.element.style.top = `${newY}px`;
-            });
+                // Draw shockwave if active
+                if (isShockwaveActive) {
+                    const elapsedTime = Date.now() - shockwaveStartTime;
+                    const progress = Math.min(1, elapsedTime / shockwaveDuration);
+                    
+                    // Calculate growing radius
+                    shockwaveRadius = shockwaveMaxRadius * progress;
+                    
+                    // Draw the shockwave ring
+                    ctx.beginPath();
+                    ctx.arc(disperseOriginX, disperseOriginY, shockwaveRadius, 0, Math.PI * 2);
+                    ctx.lineWidth = 8 * (1 - progress); // Gets thinner as it expands
+                    
+                    // Create gradient for shockwave
+                    const gradient = ctx.createRadialGradient(
+                        disperseOriginX, disperseOriginY, shockwaveRadius - 8,
+                        disperseOriginX, disperseOriginY, shockwaveRadius + 8
+                    );
+                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+                    gradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.7 * (1-progress)})`);
+                    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    
+                    ctx.strokeStyle = gradient;
+                    ctx.stroke();
+                    
+                    // Add a second inner ring
+                    if (progress < 0.7) {
+                        ctx.beginPath();
+                        const innerRadius = shockwaveRadius * 0.7;
+                        ctx.arc(disperseOriginX, disperseOriginY, innerRadius, 0, Math.PI * 2);
+                        ctx.lineWidth = 5 * (1 - progress); // Gets thinner as it expands
+                        
+                        const innerGradient = ctx.createRadialGradient(
+                            disperseOriginX, disperseOriginY, innerRadius - 5,
+                            disperseOriginX, disperseOriginY, innerRadius + 5
+                        );
+                        innerGradient.addColorStop(0, 'rgba(126, 64, 255, 0)');
+                        innerGradient.addColorStop(0.5, `rgba(126, 64, 255, ${0.5 * (1-progress)})`);
+                        innerGradient.addColorStop(1, 'rgba(126, 64, 255, 0)');
+                        
+                        ctx.strokeStyle = innerGradient;
+                        ctx.stroke();
+                    }
+                    
+                    // End the effect after duration
+                    if (progress >= 1) {
+                        isShockwaveActive = false;
+                    }
+                }
+                
+                // Update and draw nodes
+                for (let i = 0; i < nodes.length; i++) {
+                    const node = nodes[i];
+                    
+                    // Apply dispersion effect if active
+                    if (isDispersing) {
+                        // Calculate direction from button to node
+                        const dx = node.x - disperseOriginX;
+                        const dy = node.y - disperseOriginY;
+                        
+                        // Calculate distance from button
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Only affect nodes within a radius of 400px from button
+                        const dispersionRadius = 400;
+                        if (distance < dispersionRadius) {
+                            // Calculate normalized direction vector
+                            const normX = dx / (distance || 1); // Avoid division by zero
+                            const normY = dy / (distance || 1);
+                            
+                            // Effect is stronger for closer nodes
+                            const intensity = (1 - distance / dispersionRadius) * disperseEffect;
+                            node.disperseIntensity = intensity; // Store for visual effects
+                            
+                            // Apply push force in the direction away from button
+                            node.x += normX * intensity * 5;
+                            node.y += normY * intensity * 5;
+                            node.speedX += normX * intensity * 0.2;
+                            node.speedY += normY * intensity * 0.2;
+                            
+                            // Change color during dispersion
+                            if (intensity > 0.2) {
+                                // Store original color if we haven't already
+                                if (!node.originalColor) {
+                                    node.originalColor = node.color;
+                                }
+                                
+                                // Transition to energized color (white with original color alpha)
+                                const baseColor = node.originalColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+                                if (baseColor) {
+                                    const alpha = parseFloat(baseColor[4]);
+                                    // More intense color for stronger dispersion
+                                    const whiteness = intensity * 200;
+                                    const r = Math.min(255, parseInt(baseColor[1]) + whiteness);
+                                    const g = Math.min(255, parseInt(baseColor[2]) + whiteness);
+                                    const b = Math.min(255, parseInt(baseColor[3]) + whiteness);
+                                    node.color = `rgba(${r}, ${g}, ${b}, ${alpha + intensity * 0.3})`;
+                                }
+                            } else if (node.originalColor) {
+                                // Restore original color when effect is weak
+                                node.color = node.originalColor;
+                            }
+                        } else {
+                            // Reset dispersion intensity for nodes outside radius
+                            node.disperseIntensity = 0;
+                            // Restore original color
+                            if (node.originalColor) {
+                                node.color = node.originalColor;
+                            }
+                        }
+                    } else {
+                        // Reset dispersion intensity when not dispersing
+                        node.disperseIntensity = 0;
+                        // Restore original color
+                        if (node.originalColor && node.color !== node.originalColor) {
+                            node.color = node.originalColor;
+                        }
+                    }
+                    
+                    // Move node
+                    node.x += node.speedX;
+                    node.y += node.speedY;
+                    
+                    // Bounce off edges
+                    if (node.x < 0 || node.x > canvas.width) node.speedX *= -1;
+                    if (node.y < 0 || node.y > canvas.height) node.speedY *= -1;
+                    
+                    // Keep nodes within bounds
+                    if (node.x < 0) node.x = 0;
+                    if (node.x > canvas.width) node.x = canvas.width;
+                    if (node.y < 0) node.y = 0;
+                    if (node.y > canvas.height) node.y = canvas.height;
+                    
+                    // Draw node
+                    drawNode(node);
+                    
+                    // Draw connections between nearby nodes
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const otherNode = nodes[j];
+                        const dx = node.x - otherNode.x;
+                        const dy = node.y - otherNode.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < nodeConnectionDistance) {
+                            drawConnection(node, otherNode, distance, nodeConnectionDistance);
+                        }
+                    }
+                    
+                    // Connect to mouse if it's on page
+                    if (isMouseOnPage) {
+                        const dx = node.x - mouseX;
+                        const dy = node.y - mouseY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Use larger connection distance when button is hovered
+                        const currentMouseConnectionDistance = isButtonHovered ? hoverMouseConnectionDistance : mouseConnectionDistance;
+                        
+                        if (distance < currentMouseConnectionDistance) {
+                            // Draw connection to mouse
+                            ctx.beginPath();
+                            ctx.moveTo(node.x, node.y);
+                            ctx.lineTo(mouseX, mouseY);
+                            
+                            // Creating a gradient for mouse connections
+                            const opacity = 1 - (distance / currentMouseConnectionDistance);
+                            const finalOpacity = isButtonHovered ? Math.min(1, opacity * 1.3) : opacity;
+                            const colorValues = node.color.replace(/[^\d,]/g, '').split(',');
+                            
+                            const gradient = ctx.createLinearGradient(node.x, node.y, mouseX, mouseY);
+                            gradient.addColorStop(0, `rgba(${colorValues[0]}, ${colorValues[1]}, ${colorValues[2]}, ${finalOpacity})`);
+                            gradient.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
+                            
+                            ctx.strokeStyle = gradient;
+                            // Make mouse connection lines thicker when button is hovered
+                            ctx.lineWidth = isButtonHovered ? finalOpacity * 2.5 : finalOpacity * 2;
+                            ctx.stroke();
+                            
+                            // Pull the node slightly toward the mouse
+                            const pullStrength = isButtonHovered ? 0.3 : 0.15;
+                            const pullX = dx * 0.001 * pullStrength;
+                            const pullY = dy * 0.001 * pullStrength;
+                            
+                            node.speedX -= pullX;
+                            node.speedY -= pullY;
+                        }
+                    }
+                }
+                
+                // Draw mouse point if on the page
+                if (isMouseOnPage) {
+                    ctx.beginPath();
+                    // Make cursor dot larger when button is hovered
+                    const cursorSize = isButtonHovered ? 6 : 4;
+                    ctx.arc(mouseX, mouseY, cursorSize, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fill();
+                    
+                    // Add glow to mouse cursor
+                    // More intense glow when button is hovered
+                    ctx.shadowBlur = isButtonHovered ? 30 : 20;
+                    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            } catch(err) {
+                console.error("Animation error:", err);
+            }
             
+            // Always request next frame, even if there was an error
             requestAnimationFrame(animate);
         }
         
@@ -612,13 +567,15 @@
         
         // Handle window resize
         window.addEventListener('resize', () => {
-            elements.forEach(item => {
-                // Reset positions within new window dimensions
-                item.originalX = Math.random() * window.innerWidth;
-                item.originalY = Math.random() * window.innerHeight;
-            });
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Redistribute nodes on resize
+            for (let i = 0; i < nodes.length; i++) {
+                nodes[i].x = Math.random() * canvas.width;
+                nodes[i].y = Math.random() * canvas.height;
+            }
         });
     </script>
 </body>
-</html> 
 </html> 
