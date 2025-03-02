@@ -120,6 +120,10 @@
                 TANK: {
                     CORE: '#8B0000',
                     GLOW: '#4A0000'
+                },
+                SHOOTER: {
+                    CORE: '#9370DB',
+                    GLOW: '#483D8B'
                 }
             }
         };
@@ -161,7 +165,8 @@
             keys: {},
             mousePos: { x: 0, y: 0 },
             mouseDown: false,
-            particles: []
+            particles: [],
+            enemyBullets: []
         };
 
         // Star field
@@ -363,14 +368,49 @@
                 const dy = gameState.player.y - enemy.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                enemy.x += (dx / dist) * enemy.speed;
-                enemy.y += (dy / dist) * enemy.speed;
+                // Movement behavior based on enemy type
+                if (enemy.type === 'SHOOTER') {
+                    // Shooter enemies maintain distance and shoot
+                    if (dist < 200) {
+                        // Move away from player if too close
+                        enemy.x -= (dx / dist) * enemy.speed * 0.5;
+                        enemy.y -= (dy / dist) * enemy.speed * 0.5;
+                    } else if (dist > 300) {
+                        // Move closer if too far
+                        enemy.x += (dx / dist) * enemy.speed * 0.5;
+                        enemy.y += (dy / dist) * enemy.speed * 0.5;
+                    }
+                    
+                    // Handle shooter cooldown and shoot at player
+                    enemy.bulletCooldown--;
+                    if (enemy.bulletCooldown <= 0 && dist < 400) {
+                        // Shoot at player
+                        const bulletAngle = Math.atan2(dy, dx);
+                        
+                        // Create enemy bullet
+                        gameState.enemyBullets = gameState.enemyBullets || [];
+                        gameState.enemyBullets.push({
+                            x: enemy.x,
+                            y: enemy.y,
+                            dx: Math.cos(bulletAngle) * 5,
+                            dy: Math.sin(bulletAngle) * 5,
+                            lifetime: 60
+                        });
+                        
+                        // Reset cooldown
+                        enemy.bulletCooldown = 100;
+                    }
+                } else {
+                    // Normal movement for other enemies
+                    enemy.x += (dx / dist) * enemy.speed;
+                    enemy.y += (dy / dist) * enemy.speed;
+                }
 
                 // Reduce particle generation probability for better performance
                 if (Math.random() < 0.05) {
                     gameState.particles.push(createParticle(
                         enemy.x, enemy.y,
-                        COLORS.ENEMY.NORMAL.GLOW,
+                        COLORS.ENEMY[enemy.type].GLOW,
                         1, 3, 20,
                         true
                     ));
@@ -379,6 +419,48 @@
                 // Check collisions
                 return !checkEnemyCollisions(enemy, dist);
             });
+            
+            // Update enemy bullets if they exist
+            if (gameState.enemyBullets) {
+                gameState.enemyBullets = gameState.enemyBullets.filter(bullet => {
+                    bullet.x += bullet.dx;
+                    bullet.y += bullet.dy;
+                    bullet.lifetime--;
+                    
+                    // Check collision with player
+                    const dx = gameState.player.x - bullet.x;
+                    const dy = gameState.player.y - bullet.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < CONSTANTS.PLAYER.BASE_SIZE) {
+                        // If shield is active, reduce shield instead of health
+                        if (gameState.player.shield > 0) {
+                            gameState.player.shield -= 20;
+                            if (gameState.player.shield < 0) gameState.player.shield = 0;
+                        } else {
+                            gameState.player.health -= 5;
+                            
+                            // Check for game over
+                            if (gameState.player.health <= 0) {
+                                gameState.gameOver = true;
+                            }
+                        }
+                        
+                        // Create hit effect
+                        createExplosion(bullet.x, bullet.y, '#FFA500');
+                        return false;
+                    }
+                    
+                    // Remove if off-screen or expired
+                    if (bullet.x < 0 || bullet.x > canvas.width || 
+                        bullet.y < 0 || bullet.y > canvas.height || 
+                        bullet.lifetime <= 0) {
+                        return false;
+                    }
+                    
+                    return true;
+                });
+            }
         }
 
         function spawnEnemy() {
@@ -392,31 +474,78 @@
                 case 3: x = -20; y = Math.random() * canvas.height; break;
             }
 
-            gameState.enemies.push({
+            // Randomly select enemy type based on current wave
+            const enemyTypes = ['NORMAL', 'FAST', 'TANK', 'SHOOTER'];
+            let availableTypes = ['NORMAL'];
+            
+            // Add more enemy types as waves progress
+            if (gameState.currentWave >= 2) availableTypes.push('FAST');
+            if (gameState.currentWave >= 3) availableTypes.push('TANK');
+            if (gameState.currentWave >= 4) availableTypes.push('SHOOTER');
+            
+            const enemyType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+            
+            let enemyConfig = {
                 x,
                 y,
-                speed: 2 + Math.random() * 2,
-                health: 100,
-                maxHealth: 100
-            });
+                type: enemyType,
+                bulletCooldown: 0
+            };
+            
+            // Set enemy-specific properties
+            switch(enemyType) {
+                case 'NORMAL':
+                    enemyConfig.speed = 2 + Math.random();
+                    enemyConfig.health = 100;
+                    enemyConfig.maxHealth = 100;
+                    enemyConfig.size = 20;
+                    break;
+                case 'FAST':
+                    enemyConfig.speed = 3.5 + Math.random() * 1.5;
+                    enemyConfig.health = 60;
+                    enemyConfig.maxHealth = 60;
+                    enemyConfig.size = 15;
+                    break;
+                case 'TANK':
+                    enemyConfig.speed = 1 + Math.random() * 0.5;
+                    enemyConfig.health = 200;
+                    enemyConfig.maxHealth = 200;
+                    enemyConfig.size = 30;
+                    break;
+                case 'SHOOTER':
+                    enemyConfig.speed = 1.5 + Math.random();
+                    enemyConfig.health = 80;
+                    enemyConfig.maxHealth = 80;
+                    enemyConfig.size = 22;
+                    enemyConfig.bulletCooldown = 0;
+                    break;
+            }
+
+            gameState.enemies.push(enemyConfig);
         }
 
         function checkEnemyCollisions(enemy, dist) {
             // Check collision with player
-            if (dist < CONSTANTS.PLAYER.BASE_SIZE) {
+            if (dist < CONSTANTS.PLAYER.BASE_SIZE + enemy.size * 0.5) {
                 // If shield is active, reduce shield instead of health
                 if (gameState.player.shield > 0) {
                     gameState.player.shield -= 50;
                     if (gameState.player.shield < 0) gameState.player.shield = 0;
                 } else {
-                    gameState.player.health -= 10;
+                    // Different damage based on enemy type
+                    let damage = 10;
+                    if (enemy.type === 'FAST') damage = 7;
+                    if (enemy.type === 'TANK') damage = 15;
+                    if (enemy.type === 'SHOOTER') damage = 8;
+                    
+                    gameState.player.health -= damage;
                     
                     // Check for game over
                     if (gameState.player.health <= 0) {
                         gameState.gameOver = true;
                     }
                 }
-                createExplosion(enemy.x, enemy.y, COLORS.ENEMY.NORMAL.CORE);
+                createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
                 return true;
             }
 
@@ -428,15 +557,28 @@
                     (bullet.y - enemy.y) * (bullet.y - enemy.y)
                 );
 
-                if (bulletDist < CONSTANTS.BULLET.SIZE + 20) {
-                    // Apply damage based on player's damage level
-                    enemy.health -= 25 * gameState.player.level.damage;
+                if (bulletDist < CONSTANTS.BULLET.SIZE + enemy.size) {
+                    // Apply damage based on player's damage level and enemy type
+                    let baseDamage = 40; // Increased base damage
+                    let damageMultiplier = gameState.player.level.damage;
+                    
+                    // Damage adjustment for different enemy types
+                    if (enemy.type === 'FAST') baseDamage *= 1.2; // Fast enemies take more damage
+                    if (enemy.type === 'TANK') baseDamage *= 0.7; // Tank enemies take less damage
+                    
+                    enemy.health -= baseDamage * damageMultiplier;
                     gameState.player.bullets.splice(i, 1);
 
                     if (enemy.health <= 0) {
-                        gameState.player.score += 100;
+                        // Score based on enemy type
+                        let scoreValue = 100;
+                        if (enemy.type === 'FAST') scoreValue = 150;
+                        if (enemy.type === 'TANK') scoreValue = 200;
+                        if (enemy.type === 'SHOOTER') scoreValue = 250;
+                        
+                        gameState.player.score += scoreValue;
                         gameState.enemiesDefeated++;
-                        createExplosion(enemy.x, enemy.y, COLORS.ENEMY.NORMAL.CORE);
+                        createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
                         return true;
                     }
                 }
@@ -696,7 +838,8 @@
                 particles: [],
                 keys: {},
                 mousePos: { x: 0, y: 0 },
-                mouseDown: false
+                mouseDown: false,
+                enemyBullets: []
             };
             
             // Reset error state
@@ -882,31 +1025,44 @@
 
         function drawEnemies() {
             gameState.enemies.forEach(enemy => {
-                drawGlow(enemy.x, enemy.y, 30, 
-                        COLORS.ENEMY.NORMAL.GLOW.replace(')', ', 0.3)'));
+                drawGlow(enemy.x, enemy.y, enemy.size + 10, 
+                        COLORS.ENEMY[enemy.type].GLOW.replace(')', ', 0.3)'));
                 
                 ctx.beginPath();
-                ctx.arc(enemy.x, enemy.y, 20, 0, Math.PI * 2);
+                ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
                 const gradient = ctx.createRadialGradient(
                     enemy.x, enemy.y, 0,
-                    enemy.x, enemy.y, 20
+                    enemy.x, enemy.y, enemy.size
                 );
-                gradient.addColorStop(0, COLORS.ENEMY.NORMAL.CORE);
-                gradient.addColorStop(1, COLORS.ENEMY.NORMAL.GLOW);
+                gradient.addColorStop(0, COLORS.ENEMY[enemy.type].CORE);
+                gradient.addColorStop(1, COLORS.ENEMY[enemy.type].GLOW);
                 ctx.fillStyle = gradient;
                 ctx.fill();
 
                 // Health bar
-                const healthWidth = 40;
+                const healthWidth = enemy.size * 2;
                 const healthHeight = 4;
                 const healthX = enemy.x - healthWidth/2;
-                const healthY = enemy.y - 30;
+                const healthY = enemy.y - enemy.size - 10;
 
                 ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
                 ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
                 ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
                 ctx.fillRect(healthX, healthY, healthWidth * (enemy.health / enemy.maxHealth), healthHeight);
             });
+            
+            // Draw enemy bullets if they exist
+            if (gameState.enemyBullets) {
+                gameState.enemyBullets.forEach(bullet => {
+                    drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
+                            'rgba(255, 0, 0, 0.3)');
+                    
+                    ctx.beginPath();
+                    ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
+                    ctx.fillStyle = '#FF4040';
+                    ctx.fill();
+                });
+            }
         }
 
         function drawUI() {
