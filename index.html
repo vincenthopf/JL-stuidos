@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JL Studios Games</title>
+    <title>Space Invaders | JL Studios</title>
     <style>
         :root {
-            --primary: #1a1a2e;
-            --secondary: #16213e;
-            --accent: #58A1F7;
-            --text: #e6e6e6;
-            --highlight: #ff2e63;
+            --primary: #0f0f23;
+            --secondary: #1a1a3a;
+            --accent: #00c8ff;
+            --accent-alt: #ff3e7f;
+            --text: #ffffff;
+            --dark-accent: #191932;
         }
         
         * {
@@ -21,323 +22,448 @@
         }
         
         body {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            background-color: var(--primary);
             color: var(--text);
             min-height: 100vh;
             line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        .tech-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+        
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: linear-gradient(rgba(15, 15, 35, 0.7) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15, 15, 35, 0.7) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+        }
+        
+        .particle {
+            position: absolute;
+            background-color: var(--accent);
+            width: 2px;
+            height: 2px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px 2px rgba(0, 200, 255, 0.5);
+        }
+        
+        .connection {
+            position: absolute;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(0, 200, 255, 0), rgba(0, 200, 255, 0.5), rgba(0, 200, 255, 0));
+            transform-origin: left center;
+            z-index: -1;
         }
         
         header {
-            background-color: rgba(0, 0, 0, 0.3);
-            padding: 1.5rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            background-color: rgba(15, 15, 35, 0.8);
+            padding: 1.5rem 0;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(10px);
-            position: sticky;
+            position: fixed;
             top: 0;
+            width: 100%;
             z-index: 100;
         }
         
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 0 2rem;
+        }
+        
+        main.container {
+            padding-top: 120px;
+            padding-bottom: 4rem;
         }
         
         h1 {
             font-size: 2.5rem;
             text-align: center;
-            margin-bottom: 0.5rem;
             color: var(--accent);
-            text-shadow: 0 0 10px rgba(88, 161, 247, 0.5);
+            text-shadow: 0 0 15px rgba(0, 200, 255, 0.5);
+            letter-spacing: 1px;
         }
         
-        .subtitle {
-            text-align: center;
-            margin-bottom: 3rem;
-            font-size: 1.2rem;
-            color: var(--text);
-            opacity: 0.8;
-        }
-        
-        .featured-game {
-            background: rgba(22, 33, 62, 0.8);
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 4rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        .hero-section {
             display: flex;
             flex-direction: column;
-            transition: transform 0.3s ease;
-            border: 1px solid rgba(88, 161, 247, 0.3);
+            align-items: center;
+            text-align: center;
+            margin-bottom: 4rem;
+            position: relative;
         }
         
-        .featured-game:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        .hero-title {
+            font-size: 4rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            position: relative;
+            display: inline-block;
         }
         
-        .game-banner {
-            height: 300px;
+        .hero-title::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            border-radius: 2px;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.4rem;
+            max-width: 650px;
+            margin: 2rem auto;
+            line-height: 1.8;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .game-showcase {
+            background: rgba(25, 25, 50, 0.6);
+            border-radius: 16px;
+            padding: 3rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             position: relative;
             overflow: hidden;
-            background: linear-gradient(to bottom, #000000, #0a0a2a);
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            margin-top: 2rem;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
         }
         
-        .game-banner h2 {
-            font-size: 3rem;
+        .game-showcase::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            z-index: -1;
+            background: linear-gradient(45deg, var(--accent), var(--accent-alt), var(--accent), var(--accent-alt));
+            background-size: 400%;
+            border-radius: 16px;
+            opacity: 0.4;
+            animation: glowing 20s linear infinite;
+        }
+        
+        @keyframes glowing {
+            0% { background-position: 0 0; }
+            50% { background-position: 400% 0; }
+            100% { background-position: 0 0; }
+        }
+        
+        .game-title {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
             color: var(--accent);
-            text-shadow: 0 0 20px rgba(88, 161, 247, 0.8);
-            z-index: 10;
-            text-align: center;
+            text-shadow: 0 0 10px rgba(0, 200, 255, 0.5);
         }
         
-        .stars {
+        .game-description {
+            margin-bottom: 2.5rem;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            text-align: left;
+        }
+        
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin: 2rem 0;
+            width: 100%;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            font-size: 1.1rem;
+        }
+        
+        .feature-item::before {
+            content: '▶';
+            color: var(--accent);
+            margin-right: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .play-button {
+            display: inline-block;
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            color: var(--text);
+            padding: 1rem 3rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.3rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            border: none;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
+            z-index: 1;
+        }
+        
+        .play-button::before {
+            content: '';
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
+            background: linear-gradient(90deg, var(--accent-alt), var(--accent));
+            transition: opacity 0.4s ease-out;
+            z-index: -1;
+            opacity: 0;
         }
         
-        .game-content {
-            padding: 2rem;
-        }
-        
-        .game-description {
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-            line-height: 1.7;
-        }
-        
-        .play-button {
-            display: inline-block;
-            background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
-            color: white;
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 1.2rem;
-            transition: all 0.3s ease;
-            border: 1px solid rgba(88, 161, 247, 0.5);
-            text-shadow: 0 0 10px rgba(88, 161, 247, 0.5);
+        .play-button:hover::before {
+            opacity: 1;
         }
         
         .play-button:hover {
-            background: linear-gradient(45deg, #2a2a6a, #3a3a8a);
-            box-shadow: 0 0 20px rgba(88, 161, 247, 0.3);
-            transform: translateY(-2px);
-        }
-        
-        .game-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 2rem;
-        }
-        
-        .game-card {
-            background: rgba(22, 33, 62, 0.8);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease;
-            border: 1px solid rgba(88, 161, 247, 0.3);
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .game-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 7px 30px rgba(0, 200, 255, 0.7);
         }
         
-        .card-banner {
-            height: 150px;
-            background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: var(--accent);
-            font-weight: bold;
-        }
-        
-        .card-content {
-            padding: 1.5rem;
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .card-title {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-            color: var(--accent);
-        }
-        
-        .card-description {
-            margin-bottom: 1.5rem;
-            flex-grow: 1;
-        }
-        
-        .card-button {
-            display: inline-block;
-            background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
-            color: white;
-            padding: 0.8rem 1.5rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: bold;
-            transition: all 0.3s ease;
+        .footer {
+            background-color: rgba(15, 15, 35, 0.8);
             text-align: center;
-            border: 1px solid rgba(88, 161, 247, 0.5);
+            padding: 2rem 0;
+            margin-top: 4rem;
+            backdrop-filter: blur(10px);
         }
         
-        .card-button:hover {
-            background: linear-gradient(45deg, #2a2a6a, #3a3a8a);
-            box-shadow: 0 0 15px rgba(88, 161, 247, 0.3);
-        }
-        
-        .section-title {
-            position: relative;
-            font-size: 2rem;
-            margin-bottom: 2rem;
-            padding-bottom: 0.5rem;
-            color: var(--accent);
-        }
-        
-        .section-title::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100px;
-            height: 3px;
-            background: var(--accent);
-            border-radius: 3px;
-        }
-        
-        .coming-soon {
-            opacity: 0.7;
-        }
-        
-        footer {
-            background-color: rgba(0, 0, 0, 0.3);
-            text-align: center;
-            padding: 2rem;
-            margin-top: 3rem;
+        .footer p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
         }
         
         @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
+            .main.container {
+                padding-top: 100px;
             }
             
-            .game-grid {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .game-showcase {
+                padding: 2rem 1.5rem;
+            }
+            
+            .feature-list {
                 grid-template-columns: 1fr;
             }
             
-            .game-banner h2 {
+            .game-title {
                 font-size: 2rem;
             }
         }
     </style>
 </head>
 <body>
+    <div class="tech-background">
+        <div class="grid-overlay"></div>
+        <!-- Particles and connections will be added with JavaScript -->
+    </div>
+
     <header>
         <div class="container">
-            <h1>JL Studios Games</h1>
+            <h1>JL Studios</h1>
         </div>
     </header>
     
     <main class="container">
-        <p class="subtitle">Experience our collection of handcrafted browser games</p>
-        
-        <section class="featured-game">
-            <div class="game-banner">
-                <div class="stars" id="stars"></div>
-                <h2>Enhanced Space Shooter</h2>
-            </div>
-            <div class="game-content">
-                <div class="game-description">
-                    <p>Navigate through waves of enemies in this intense space shooter game! Upgrade your ship, collect power-ups, and defeat all five waves to win. Features beautiful visual effects, intuitive controls, and challenging gameplay.</p>
-                    <ul style="margin-top: 1rem; margin-left: 1.5rem;">
-                        <li>Fight through 5 increasingly difficult waves</li>
-                        <li>Upgrade your damage, speed, health, and energy</li>
-                        <li>Collect power-ups to gain shields and multi-shot abilities</li>
-                        <li>Use your dash ability to evade enemies</li>
-                    </ul>
-                </div>
-                <a href="game.html" class="play-button">Play Now</a>
-            </div>
+        <section class="hero-section">
+            <h2 class="hero-title">Space Invaders</h2>
+            <p class="hero-subtitle">Experience the ultimate space combat challenge with stunning visuals and intense gameplay. Navigate through waves of enemies, upgrade your ship, and survive the cosmic onslaught.</p>
         </section>
         
-        <h2 class="section-title">More Games</h2>
-        
-        <div class="game-grid">
-            <div class="game-card coming-soon">
-                <div class="card-banner">Coming Soon</div>
-                <div class="card-content">
-                    <h3 class="card-title">Puzzle Adventure</h3>
-                    <p class="card-description">A brain-teasing puzzle game with beautiful graphics and challenging levels.</p>
-                    <span class="card-button">Under Development</span>
-                </div>
+        <div class="game-showcase">
+            <h3 class="game-title">Enhanced Space Shooter</h3>
+            <div class="game-description">
+                <p>Navigate through waves of enemies in this intense space shooter game! Upgrade your ship, collect power-ups, and defeat all five waves to win. Features beautiful visual effects, intuitive controls, and challenging gameplay.</p>
             </div>
             
-            <div class="game-card coming-soon">
-                <div class="card-banner">Coming Soon</div>
-                <div class="card-content">
-                    <h3 class="card-title">Platformer Quest</h3>
-                    <p class="card-description">A classic platformer with modern mechanics and pixel-perfect controls.</p>
-                    <span class="card-button">Under Development</span>
-                </div>
+            <div class="feature-list">
+                <div class="feature-item">Fight through 5 increasingly difficult waves</div>
+                <div class="feature-item">Upgrade damage, speed, health, and energy</div>
+                <div class="feature-item">Collect power-ups for shields and multi-shot</div>
+                <div class="feature-item">Use dash ability to evade enemies</div>
+                <div class="feature-item">High-score leaderboard challenge</div>
+                <div class="feature-item">Responsive controls for any device</div>
             </div>
             
-            <div class="game-card coming-soon">
-                <div class="card-banner">Coming Soon</div>
-                <div class="card-content">
-                    <h3 class="card-title">Strategy Conquest</h3>
-                    <p class="card-description">Build your empire and conquer your opponents in this turn-based strategy game.</p>
-                    <span class="card-button">Under Development</span>
-                </div>
-            </div>
+            <a href="game.html" class="play-button">Play Now</a>
         </div>
     </main>
     
-    <footer>
-        <p>&copy; 2023 JL Studios. All rights reserved.</p>
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2023 JL Studios. All rights reserved.</p>
+        </div>
     </footer>
     
     <script>
-        // Create starfield effect for the featured game banner
-        const starsContainer = document.getElementById('stars');
-        const starCount = 100;
+        // Create tech network background
+        const techBackground = document.querySelector('.tech-background');
+        const particleCount = 30;
+        const particles = [];
+        const connections = [];
         
-        for (let i = 0; i < starCount; i++) {
-            const star = document.createElement('div');
-            star.style.position = 'absolute';
-            star.style.width = `${Math.random() * 2}px`;
-            star.style.height = star.style.width;
-            star.style.backgroundColor = 'white';
-            star.style.borderRadius = '50%';
-            star.style.opacity = Math.random() * 0.7 + 0.3;
-            star.style.left = `${Math.random() * 100}%`;
-            star.style.top = `${Math.random() * 100}%`;
-            star.style.animation = `twinkle ${Math.random() * 5 + 2}s infinite`;
-            starsContainer.appendChild(star);
+        // Create particles
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.classList.add('particle');
+            
+            // Random positions
+            const x = Math.random() * window.innerWidth;
+            const y = Math.random() * window.innerHeight;
+            
+            // Random speeds (pixels per second)
+            const speedX = (Math.random() - 0.5) * 40;
+            const speedY = (Math.random() - 0.5) * 40;
+            
+            particle.style.left = `${x}px`;
+            particle.style.top = `${y}px`;
+            
+            particles.push({
+                element: particle,
+                x,
+                y,
+                speedX,
+                speedY
+            });
+            
+            techBackground.appendChild(particle);
         }
         
-        // Add CSS animation for twinkling stars
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes twinkle {
-                0% { opacity: 0.3; }
-                50% { opacity: 1; }
-                100% { opacity: 0.3; }
+        // Create connections between particles
+        function updateConnections() {
+            // Remove old connections
+            connections.forEach(conn => {
+                if (conn.element.parentNode) {
+                    techBackground.removeChild(conn.element);
+                }
+            });
+            connections.length = 0;
+            
+            // Create new connections for particles that are close enough
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p1 = particles[i];
+                    const p2 = particles[j];
+                    
+                    // Calculate distance
+                    const dx = p1.x - p2.x;
+                    const dy = p1.y - p2.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Connect if within threshold
+                    if (distance < 200) {
+                        const opacity = 1 - distance / 200;
+                        const connection = document.createElement('div');
+                        connection.classList.add('connection');
+                        
+                        // Position and rotate line to connect particles
+                        connection.style.width = `${distance}px`;
+                        connection.style.left = `${p1.x}px`;
+                        connection.style.top = `${p1.y}px`;
+                        
+                        // Calculate angle
+                        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                        connection.style.transform = `rotate(${angle}deg)`;
+                        connection.style.opacity = opacity;
+                        
+                        techBackground.appendChild(connection);
+                        connections.push({
+                            element: connection,
+                            p1,
+                            p2
+                        });
+                    }
+                }
             }
-        `;
-        document.head.appendChild(style);
+        }
+        
+        // Animation loop
+        let lastTime = 0;
+        function animate(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const deltaTime = (timestamp - lastTime) / 1000; // in seconds
+            lastTime = timestamp;
+            
+            // Update particle positions
+            particles.forEach(particle => {
+                // Move particle
+                particle.x += particle.speedX * deltaTime;
+                particle.y += particle.speedY * deltaTime;
+                
+                // Bounce off edges
+                if (particle.x < 0 || particle.x > window.innerWidth) {
+                    particle.speedX = -particle.speedX;
+                    particle.x = Math.max(0, Math.min(window.innerWidth, particle.x));
+                }
+                
+                if (particle.y < 0 || particle.y > window.innerHeight) {
+                    particle.speedY = -particle.speedY;
+                    particle.y = Math.max(0, Math.min(window.innerHeight, particle.y));
+                }
+                
+                // Update DOM
+                particle.element.style.left = `${particle.x}px`;
+                particle.element.style.top = `${particle.y}px`;
+            });
+            
+            // Update connections
+            updateConnections();
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // Start animation
+        requestAnimationFrame(animate);
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            // Ensure particles stay in bounds after resize
+            particles.forEach(particle => {
+                particle.x = Math.min(particle.x, window.innerWidth);
+                particle.y = Math.min(particle.y, window.innerHeight);
+            });
+        });
     </script>
 </body>
 </html> 
