@@ -15,10 +15,15 @@
             color: #fff;
         }
         canvas {
-            border: 2px solid rgba(88, 161, 247, 0.3);
-            box-shadow: 0 0 30px rgba(88, 161, 247, 0.2);
-            border-radius: 8px;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
             background: linear-gradient(to bottom, #000000, #0a0a2a);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
         #upgradeMenu {
             position: absolute;
@@ -51,6 +56,69 @@
             box-shadow: 0 0 20px rgba(88, 161, 247, 0.3);
             transform: translateY(-2px);
         }
+        #waveSelectMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 42, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid rgba(88, 161, 247, 0.5);
+            box-shadow: 0 0 40px rgba(88, 161, 247, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+            min-width: 400px;
+        }
+        .wave-button {
+            background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
+            border: 1px solid rgba(88, 161, 247, 0.5);
+            color: #fff;
+            padding: 12px;
+            margin: 6px;
+            cursor: pointer;
+            border-radius: 10px;
+            width: 120px;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            text-shadow: 0 0 10px rgba(88, 161, 247, 0.5);
+        }
+        .wave-button:hover {
+            background: linear-gradient(45deg, #2a2a6a, #3a3a8a);
+            box-shadow: 0 0 20px rgba(88, 161, 247, 0.3);
+            transform: translateY(-2px);
+        }
+        .wave-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .menu-title {
+            color: #58A1F7;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .start-button {
+            background: linear-gradient(45deg, #1a4a1a, #2a6a2a);
+            border: 1px solid rgba(88, 247, 88, 0.5);
+            color: #fff;
+            padding: 15px 30px;
+            margin-top: 10px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            text-shadow: 0 0 10px rgba(88, 247, 88, 0.5);
+        }
+        .start-button:hover {
+            background: linear-gradient(45deg, #2a6a2a, #3a8a3a);
+            box-shadow: 0 0 20px rgba(88, 247, 88, 0.3);
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
@@ -59,13 +127,30 @@
         <h2 style="text-align: center; margin-bottom: 20px; color: #58A1F7;">Wave Complete!</h2>
         <div id="upgradeOptions"></div>
     </div>
+    <div id="waveSelectMenu">
+        <h2 class="menu-title">Select Starting Wave</h2>
+        <div class="wave-grid" id="waveButtons"></div>
+        <button class="start-button" id="startGameButton">Start Game</button>
+    </div>
     <script>
         // Initialize canvas
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        canvas.width = 800;
-        canvas.height = 600;
+        // Set canvas to full screen size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // Reset player position when screen resizes
+            if (!gameState.gameOver && !gameState.gameWon) {
+                gameState.player.x = canvas.width / 2;
+                gameState.player.y = canvas.height / 2;
+            }
+        });
 
         // Game constants
         const CONSTANTS = {
@@ -124,6 +209,14 @@
                 SHOOTER: {
                     CORE: '#9370DB',
                     GLOW: '#483D8B'
+                },
+                BOMBER: {
+                    CORE: '#32CD32',
+                    GLOW: '#006400'
+                },
+                ELITE: {
+                    CORE: '#FFD700',
+                    GLOW: '#B8860B'
                 }
             }
         };
@@ -131,8 +224,8 @@
         // Initialize game state
         let gameState = {
             player: {
-                x: canvas.width / 2,
-                y: canvas.height / 2,
+                x: window.innerWidth / 2,
+                y: window.innerHeight / 2,
                 speed: CONSTANTS.PLAYER.BASE_SPEED,
                 health: CONSTANTS.PLAYER.BASE_HEALTH,
                 maxHealth: CONSTANTS.PLAYER.BASE_HEALTH,
@@ -156,7 +249,7 @@
             enemies: [],
             powerUps: [],
             currentWave: 1,
-            wavesTotal: 5,
+            wavesTotal: 10,
             enemiesPerWave: 10,
             enemiesDefeated: 0,
             waveComplete: false,
@@ -166,32 +259,183 @@
             mousePos: { x: 0, y: 0 },
             mouseDown: false,
             particles: [],
-            enemyBullets: []
+            enemyBullets: [],
+            selectedWave: 1,
+            gameStarted: false,
+            lastKeyPress: {}
         };
 
+        // Secret code sequence tracking
+        let secretCodeBuffer = [];
+        let secretCodeTimeout = null;
+
         // Star field
-        const stars = Array(200).fill().map(() => ({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
+        const stars = Array(300).fill().map(() => ({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * window.innerHeight,
             size: Math.random() * 2,
             speed: 0.1 + Math.random() * 0.5
         }));
 
+        // Initialize wave selection menu
+        function initWaveSelectionMenu() {
+            const waveButtons = document.getElementById('waveButtons');
+            waveButtons.innerHTML = '';
+            
+            // Create a button for each available wave
+            for (let i = 1; i <= gameState.wavesTotal; i++) {
+                const button = document.createElement('button');
+                button.className = 'wave-button';
+                button.textContent = `Wave ${i}`;
+                button.dataset.wave = i;
+                
+                // Highlight the currently selected wave
+                if (i === gameState.selectedWave) {
+                    button.style.border = '2px solid #58A1F7';
+                    button.style.boxShadow = '0 0 15px rgba(88, 161, 247, 0.5)';
+                }
+                
+                button.addEventListener('click', () => {
+                    // Update selected wave
+                    gameState.selectedWave = i;
+                    
+                    // Update button styles
+                    document.querySelectorAll('.wave-button').forEach(btn => {
+                        btn.style.border = '1px solid rgba(88, 161, 247, 0.5)';
+                        btn.style.boxShadow = 'none';
+                    });
+                    
+                    button.style.border = '2px solid #58A1F7';
+                    button.style.boxShadow = '0 0 15px rgba(88, 161, 247, 0.5)';
+                });
+                
+                waveButtons.appendChild(button);
+            }
+            
+            // Add event listener to start button
+            document.getElementById('startGameButton').addEventListener('click', startGameWithSelectedWave);
+        }
+        
+        function startGameWithSelectedWave() {
+            // Hide the menu
+            document.getElementById('waveSelectMenu').style.display = 'none';
+            
+            // Set up game state for the selected wave
+            gameState.currentWave = gameState.selectedWave;
+            gameState.enemiesDefeated = 0;
+            gameState.waveComplete = false;
+            
+            // Adjust difficulty based on wave - make early waves easier
+            if (gameState.currentWave <= 3) {
+                // Easier early waves (1-3)
+                gameState.enemiesPerWave = 8 + (gameState.currentWave - 1) * 1;
+            } else {
+                // Normal difficulty progression for later waves
+                gameState.enemiesPerWave = 10 + (gameState.currentWave - 1) * 2;
+            }
+            
+            // Scale player based on wave (to simulate upgrade progress)
+            if (gameState.currentWave > 1) {
+                const upgradePoints = gameState.currentWave - 1;
+                
+                // Distribute upgrade points
+                gameState.player.level.damage += upgradePoints * 0.2;
+                gameState.player.level.speed += upgradePoints * 0.1;
+                gameState.player.maxHealth += upgradePoints * 10;
+                gameState.player.health = gameState.player.maxHealth;
+                gameState.player.maxEnergy += upgradePoints * 5;
+                gameState.player.energy = gameState.player.maxEnergy;
+                gameState.player.speed += upgradePoints * 0.2;
+            }
+            
+            // Mark game as started
+            gameState.gameStarted = true;
+            gamePaused = false;
+        }
+        
+        // Show wave selection menu on load - change to not show by default
+        window.addEventListener('load', () => {
+            initWaveSelectionMenu();
+            
+            // Start game immediately at wave 1 instead of showing menu
+            gameState.selectedWave = 1;
+            gameState.gameStarted = true;
+            gamePaused = false;
+            document.getElementById('waveSelectMenu').style.display = 'none';
+        });
+
         // Event listeners
         document.addEventListener('keydown', (e) => {
-            gameState.keys[e.key.toLowerCase()] = true;
+            // Store the key in lowercase to make comparisons case-insensitive
+            const key = e.key.toLowerCase();
+            
+            // Set the key state to true
+            gameState.keys[key] = true;
+            
+            // Track the last time this key was pressed (for detecting stuck keys)
+            gameState.lastKeyPress = gameState.lastKeyPress || {};
+            gameState.lastKeyPress[key] = Date.now();
+            
+            // Secret code sequence tracking (Shift+P+/)
+            if (secretCodeTimeout) {
+                clearTimeout(secretCodeTimeout);
+            }
+            
+            // Add key to sequence buffer
+            if (e.shiftKey && key === 'p') {
+                secretCodeBuffer.push('shift+p');
+            } else if (key === '/') {
+                secretCodeBuffer.push('/');
+            }
+            
+            // Check for the full sequence
+            if (secretCodeBuffer.length >= 2 && 
+                secretCodeBuffer.includes('shift+p') && 
+                secretCodeBuffer.includes('/')) {
+                // Show wave selection menu and pause game
+                gameState.gameStarted = false;
+                gamePaused = true;
+                document.getElementById('waveSelectMenu').style.display = 'flex';
+                initWaveSelectionMenu();
+                secretCodeBuffer = []; // Clear buffer after activation
+                return;
+            }
+            
+            // Set timeout to clear buffer after 1 second
+            secretCodeTimeout = setTimeout(() => {
+                secretCodeBuffer = [];
+            }, 1000);
             
             // Restart game on 'r' key when game is over
-            if (e.key.toLowerCase() === 'r' && (gameState.gameOver || gameState.gameWon)) {
+            if (key === 'r' && (gameState.gameOver || gameState.gameWon)) {
                 restartGame();
             }
             
             // Dash on space key
-            if (e.key === ' ' && gameState.player.dashCooldown <= 0 && gameState.player.energy >= 30) {
+            if (key === ' ' && gameState.player.dashCooldown <= 0 && gameState.player.energy >= 30) {
                 dash();
             }
         });
-        document.addEventListener('keyup', (e) => gameState.keys[e.key.toLowerCase()] = false);
+        
+        document.addEventListener('keyup', (e) => {
+            // Store the key in lowercase to make comparisons case-insensitive
+            const key = e.key.toLowerCase();
+            
+            // Set the key state to false
+            gameState.keys[key] = false;
+            
+            // Clear last key press time
+            if (gameState.lastKeyPress && gameState.lastKeyPress[key]) {
+                delete gameState.lastKeyPress[key];
+            }
+        });
+        
+        // Focus event handlers to prevent stuck keys when window loses focus
+        window.addEventListener('blur', () => {
+            // Clear all key states when window loses focus
+            gameState.keys = {};
+        });
+
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             gameState.mousePos.x = e.clientX - rect.left;
@@ -247,12 +491,38 @@
 
         function updatePlayer() {
             const player = gameState.player;
+            
+            // Check for stuck keys (pressed more than 5 seconds ago)
+            if (gameState.lastKeyPress) {
+                const now = Date.now();
+                for (const key in gameState.lastKeyPress) {
+                    if (now - gameState.lastKeyPress[key] > 5000) {
+                        // Clear stuck key
+                        gameState.keys[key] = false;
+                        delete gameState.lastKeyPress[key];
+                    }
+                }
+            }
 
-            // Movement
-            if (gameState.keys['w']) player.y -= player.speed;
-            if (gameState.keys['s']) player.y += player.speed;
-            if (gameState.keys['a']) player.x -= player.speed;
-            if (gameState.keys['d']) player.x += player.speed;
+            // Movement with improved handling
+            let moveX = 0, moveY = 0;
+            
+            // Check for WASD or arrow keys
+            if (gameState.keys['w'] || gameState.keys['arrowup']) moveY -= 1;
+            if (gameState.keys['s'] || gameState.keys['arrowdown']) moveY += 1;
+            if (gameState.keys['a'] || gameState.keys['arrowleft']) moveX -= 1;
+            if (gameState.keys['d'] || gameState.keys['arrowright']) moveX += 1;
+            
+            // Normalize diagonal movement to prevent faster diagonal speed
+            if (moveX !== 0 && moveY !== 0) {
+                const norm = Math.sqrt(moveX * moveX + moveY * moveY);
+                moveX /= norm;
+                moveY /= norm;
+            }
+            
+            // Apply movement
+            player.x += moveX * player.speed;
+            player.y += moveY * player.speed;
 
             // Keep in bounds
             player.x = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.width - CONSTANTS.PLAYER.BASE_SIZE, player.x));
@@ -375,31 +645,193 @@
                         // Move away from player if too close
                         enemy.x -= (dx / dist) * enemy.speed * 0.5;
                         enemy.y -= (dy / dist) * enemy.speed * 0.5;
-                    } else if (dist > 300) {
+                    } else if (dist > 450) { // Increased optimal range from 300 to 450
                         // Move closer if too far
                         enemy.x += (dx / dist) * enemy.speed * 0.5;
                         enemy.y += (dy / dist) * enemy.speed * 0.5;
+                    } else {
+                        // Strafe around player when at optimal range
+                        const strafeAngle = Math.atan2(dy, dx) + Math.PI/2;
+                        const strafeDirection = Math.random() > 0.5 ? 1 : -1;
+                        enemy.x += Math.cos(strafeAngle) * enemy.speed * 0.3 * strafeDirection;
+                        enemy.y += Math.sin(strafeAngle) * enemy.speed * 0.3 * strafeDirection;
                     }
                     
                     // Handle shooter cooldown and shoot at player
                     enemy.bulletCooldown--;
-                    if (enemy.bulletCooldown <= 0 && dist < 400) {
-                        // Shoot at player
-                        const bulletAngle = Math.atan2(dy, dx);
+                    if (enemy.bulletCooldown <= 0 && dist < 600) { // Increased shooting range from 400 to 600
+                        // Predictive shooting - anticipate player movement
+                        let targetX = gameState.player.x;
+                        let targetY = gameState.player.y;
+                        
+                        // Calculate player velocity vector based on key inputs
+                        let playerVelocityX = 0;
+                        let playerVelocityY = 0;
+                        
+                        if (gameState.keys['w']) playerVelocityY = -gameState.player.speed;
+                        if (gameState.keys['s']) playerVelocityY = gameState.player.speed;
+                        if (gameState.keys['a']) playerVelocityX = -gameState.player.speed;
+                        if (gameState.keys['d']) playerVelocityX = gameState.player.speed;
+                        
+                        // Predict player position based on current movement
+                        const predictionFactor = dist / 20; // Adjust prediction based on distance
+                        targetX += playerVelocityX * predictionFactor;
+                        targetY += playerVelocityY * predictionFactor;
+                        
+                        // Calculate angle to predicted position
+                        const predictedDx = targetX - enemy.x;
+                        const predictedDy = targetY - enemy.y;
+                        const bulletAngle = Math.atan2(predictedDy, predictedDx);
+                        
+                        // Bullet speed increases in later waves for more challenge
+                        const bulletSpeed = 5 + Math.min(gameState.currentWave * 0.5, 4);
                         
                         // Create enemy bullet
                         gameState.enemyBullets = gameState.enemyBullets || [];
                         gameState.enemyBullets.push({
                             x: enemy.x,
                             y: enemy.y,
-                            dx: Math.cos(bulletAngle) * 5,
-                            dy: Math.sin(bulletAngle) * 5,
-                            lifetime: 60
+                            dx: Math.cos(bulletAngle) * bulletSpeed,
+                            dy: Math.sin(bulletAngle) * bulletSpeed,
+                            lifetime: 80, // Increased bullet lifetime from 60 to 80
+                            fromShooter: true
                         });
                         
-                        // Reset cooldown
-                        enemy.bulletCooldown = 100;
+                        // Add bullet visual effect
+                        for (let i = 0; i < 3; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.SHOOTER.CORE,
+                                2, 3, 10,
+                                true
+                            ));
+                        }
+                        
+                        // Reset cooldown - faster firing rate in later waves
+                        enemy.bulletCooldown = Math.max(40, 100 - (gameState.currentWave * 6));
                     }
+                } else if (enemy.type === 'BOMBER') {
+                    // Bomber enemy - charges at player and explodes
+                    
+                    // Initialize explosion timer if not set
+                    enemy.explosionTimer = enemy.explosionTimer || 180;
+                    enemy.isCharging = enemy.isCharging || false;
+                    enemy.chargeTarget = enemy.chargeTarget || {x: 0, y: 0};
+                    
+                    if (enemy.isCharging) {
+                        // Continue charging toward target
+                        const chargeDx = enemy.chargeTarget.x - enemy.x;
+                        const chargeDy = enemy.chargeTarget.y - enemy.y;
+                        const chargeDist = Math.sqrt(chargeDx * chargeDx + chargeDy * chargeDy);
+                        
+                        if (chargeDist > 5) {
+                            enemy.x += (chargeDx / chargeDist) * enemy.speed * 2.5;
+                            enemy.y += (chargeDy / chargeDist) * enemy.speed * 2.5;
+                        } else {
+                            // Explode at target
+                            explodeBomber(enemy);
+                            return false; // Remove enemy
+                        }
+                        
+                        // Create trail effect
+                        if (Math.random() < 0.2) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.BOMBER.GLOW,
+                                1, 5, 20,
+                                true
+                            ));
+                        }
+                    } else {
+                        // Normal movement until ready to charge
+                        enemy.x += (dx / dist) * enemy.speed * 0.7;
+                        enemy.y += (dy / dist) * enemy.speed * 0.7;
+                        
+                        // Count down to explosion
+                        enemy.explosionTimer--;
+                        
+                        // Flash when about to charge
+                        if (enemy.explosionTimer < 60 && enemy.explosionTimer % 10 < 5) {
+                            enemy.flashColor = true;
+                        } else {
+                            enemy.flashColor = false;
+                        }
+                        
+                        // Start charging
+                        if (enemy.explosionTimer <= 0) {
+                            enemy.isCharging = true;
+                            enemy.chargeTarget = {
+                                x: gameState.player.x,
+                                y: gameState.player.y
+                            };
+                        }
+                    }
+                } else if (enemy.type === 'ELITE') {
+                    // Elite enemy - has shields and teleports
+                    
+                    // Initialize elite properties if not set
+                    enemy.shield = enemy.shield || 50;
+                    enemy.teleportCooldown = enemy.teleportCooldown || 180;
+                    enemy.attackCooldown = enemy.attackCooldown || 120;
+                    
+                    // Update cooldowns
+                    enemy.teleportCooldown--;
+                    enemy.attackCooldown--;
+                    
+                    // Teleport when cooldown reaches zero or when health is low
+                    if (enemy.teleportCooldown <= 0 || (enemy.health < enemy.maxHealth * 0.3 && enemy.teleportCooldown <= 60)) {
+                        // Create teleport effect at current position
+                        createTeleportEffect(enemy.x, enemy.y);
+                        
+                        // Teleport to a new position near the player
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = 200 + Math.random() * 200;
+                        enemy.x = gameState.player.x + Math.cos(angle) * distance;
+                        enemy.y = gameState.player.y + Math.sin(angle) * distance;
+                        
+                        // Create teleport effect at new position
+                        createTeleportEffect(enemy.x, enemy.y);
+                        
+                        // Reset teleport cooldown
+                        enemy.teleportCooldown = 180;
+                    }
+                    
+                    // Special attack - shoot multiple bullets in a pattern
+                    if (enemy.attackCooldown <= 0 && dist < 500) {
+                        // Spiral attack
+                        const bulletCount = 8;
+                        for (let i = 0; i < bulletCount; i++) {
+                            const spreadAngle = Math.atan2(dy, dx) + (Math.PI * 2 * i / bulletCount);
+                            
+                            gameState.enemyBullets.push({
+                                x: enemy.x,
+                                y: enemy.y,
+                                dx: Math.cos(spreadAngle) * 4,
+                                dy: Math.sin(spreadAngle) * 4,
+                                lifetime: 60,
+                                fromElite: true
+                            });
+                        }
+                        
+                        // Create attack effect
+                        for (let i = 0; i < 10; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.ELITE.CORE,
+                                3, 5, 15,
+                                true
+                            ));
+                        }
+                        
+                        // Reset attack cooldown
+                        enemy.attackCooldown = 120;
+                    }
+                    
+                    // Move toward player at variable speed
+                    const moveSpeed = enemy.speed * (0.5 + Math.sin(Date.now() / 1000) * 0.3);
+                    enemy.x += (dx / dist) * moveSpeed;
+                    enemy.y += (dy / dist) * moveSpeed;
+                    
                 } else {
                     // Normal movement for other enemies
                     enemy.x += (dx / dist) * enemy.speed;
@@ -475,13 +907,15 @@
             }
 
             // Randomly select enemy type based on current wave
-            const enemyTypes = ['NORMAL', 'FAST', 'TANK', 'SHOOTER'];
+            const enemyTypes = ['NORMAL', 'FAST', 'TANK', 'SHOOTER', 'BOMBER', 'ELITE'];
             let availableTypes = ['NORMAL'];
             
-            // Add more enemy types as waves progress
-            if (gameState.currentWave >= 2) availableTypes.push('FAST');
-            if (gameState.currentWave >= 3) availableTypes.push('TANK');
-            if (gameState.currentWave >= 4) availableTypes.push('SHOOTER');
+            // Add more enemy types as waves progress - made easier for early waves
+            if (gameState.currentWave >= 3) availableTypes.push('FAST'); // Was 2
+            if (gameState.currentWave >= 4) availableTypes.push('TANK'); // Was 3
+            if (gameState.currentWave >= 5) availableTypes.push('SHOOTER'); // Was 4
+            if (gameState.currentWave >= 6) availableTypes.push('BOMBER'); // Was 5
+            if (gameState.currentWave >= 7) availableTypes.push('ELITE'); // Was 6
             
             const enemyType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
             
@@ -492,18 +926,31 @@
                 bulletCooldown: 0
             };
             
-            // Set enemy-specific properties
+            // Set enemy-specific properties - weakened for early waves
             switch(enemyType) {
                 case 'NORMAL':
-                    enemyConfig.speed = 2 + Math.random();
-                    enemyConfig.health = 100;
-                    enemyConfig.maxHealth = 100;
+                    // Reduced health and speed for early waves
+                    if (gameState.currentWave <= 3) {
+                        enemyConfig.speed = 1.5 + Math.random() * 0.5;
+                        enemyConfig.health = 80;
+                        enemyConfig.maxHealth = 80;
+                    } else {
+                        enemyConfig.speed = 2 + Math.random();
+                        enemyConfig.health = 100;
+                        enemyConfig.maxHealth = 100;
+                    }
                     enemyConfig.size = 20;
                     break;
                 case 'FAST':
-                    enemyConfig.speed = 3.5 + Math.random() * 1.5;
-                    enemyConfig.health = 60;
-                    enemyConfig.maxHealth = 60;
+                    if (gameState.currentWave <= 3) {
+                        enemyConfig.speed = 2.5 + Math.random() * 1;
+                        enemyConfig.health = 40;
+                        enemyConfig.maxHealth = 40;
+                    } else {
+                        enemyConfig.speed = 3.5 + Math.random() * 1.5;
+                        enemyConfig.health = 60;
+                        enemyConfig.maxHealth = 60;
+                    }
                     enemyConfig.size = 15;
                     break;
                 case 'TANK':
@@ -518,6 +965,18 @@
                     enemyConfig.maxHealth = 80;
                     enemyConfig.size = 22;
                     enemyConfig.bulletCooldown = 0;
+                    break;
+                case 'BOMBER':
+                    enemyConfig.speed = 1 + Math.random();
+                    enemyConfig.health = 100;
+                    enemyConfig.maxHealth = 100;
+                    enemyConfig.size = 20;
+                    break;
+                case 'ELITE':
+                    enemyConfig.speed = 1.5 + Math.random();
+                    enemyConfig.health = 120;
+                    enemyConfig.maxHealth = 120;
+                    enemyConfig.size = 25;
                     break;
             }
 
@@ -537,6 +996,13 @@
                     if (enemy.type === 'FAST') damage = 7;
                     if (enemy.type === 'TANK') damage = 15;
                     if (enemy.type === 'SHOOTER') damage = 8;
+                    if (enemy.type === 'BOMBER') damage = 12;
+                    if (enemy.type === 'ELITE') damage = 14;
+                    
+                    // Reduce damage for early waves
+                    if (gameState.currentWave <= 3) {
+                        damage = Math.round(damage * 0.7);
+                    }
                     
                     gameState.player.health -= damage;
                     
@@ -545,8 +1011,33 @@
                         gameState.gameOver = true;
                     }
                 }
-                createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
-                return true;
+                
+                // Special effect for elite collision
+                if (enemy.type === 'ELITE') {
+                    // Teleport away after collision
+                    createTeleportEffect(enemy.x, enemy.y);
+                    
+                    // Teleport to a random position away from player
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 300 + Math.random() * 100;
+                    enemy.x = gameState.player.x + Math.cos(angle) * distance;
+                    enemy.y = gameState.player.y + Math.sin(angle) * distance;
+                    
+                    createTeleportEffect(enemy.x, enemy.y);
+                    
+                    // Don't destroy elite on collision
+                    return false;
+                } 
+                // Bomber explodes on collision
+                else if (enemy.type === 'BOMBER') {
+                    explodeBomber(enemy);
+                    return true;
+                }
+                // Normal explosion for other enemy types
+                else {
+                    createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
+                    return true;
+                }
             }
 
             // Check collision with bullets
@@ -565,8 +1056,35 @@
                     // Damage adjustment for different enemy types
                     if (enemy.type === 'FAST') baseDamage *= 1.2; // Fast enemies take more damage
                     if (enemy.type === 'TANK') baseDamage *= 0.7; // Tank enemies take less damage
+                    if (enemy.type === 'ELITE') {
+                        // Elite enemies have shield that absorbs damage first
+                        if (enemy.shield > 0) {
+                            enemy.shield -= baseDamage * damageMultiplier * 0.5;
+                            // Create shield hit effect
+                            for (let j = 0; j < 5; j++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    COLORS.ENEMY.ELITE.GLOW,
+                                    2, 3, 15,
+                                    true
+                                ));
+                            }
+                            gameState.player.bullets.splice(i, 1);
+                            // If shield is depleted, continue to damage health
+                            if (enemy.shield <= 0) {
+                                enemy.shield = 0;
+                                enemy.health -= baseDamage * damageMultiplier * 0.5;
+                            } else {
+                                // Shield absorbed all damage
+                                continue;
+                            }
+                        } else {
+                            enemy.health -= baseDamage * damageMultiplier * 0.8; // Elite takes less damage
+                        }
+                    } else {
+                        enemy.health -= baseDamage * damageMultiplier;
+                    }
                     
-                    enemy.health -= baseDamage * damageMultiplier;
                     gameState.player.bullets.splice(i, 1);
 
                     if (enemy.health <= 0) {
@@ -575,10 +1093,33 @@
                         if (enemy.type === 'FAST') scoreValue = 150;
                         if (enemy.type === 'TANK') scoreValue = 200;
                         if (enemy.type === 'SHOOTER') scoreValue = 250;
+                        if (enemy.type === 'BOMBER') scoreValue = 100;
+                        if (enemy.type === 'ELITE') scoreValue = 300;
                         
                         gameState.player.score += scoreValue;
                         gameState.enemiesDefeated++;
-                        createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
+                        
+                        // Special death effect for bomber
+                        if (enemy.type === 'BOMBER') {
+                            explodeBomber(enemy);
+                        } 
+                        // Special death effect for elite
+                        else if (enemy.type === 'ELITE') {
+                            // More impressive explosion for elite
+                            for (let i = 0; i < 3; i++) {
+                                setTimeout(() => {
+                                    createExplosion(
+                                        enemy.x + (Math.random() * 50 - 25),
+                                        enemy.y + (Math.random() * 50 - 25),
+                                        COLORS.ENEMY.ELITE.CORE
+                                    );
+                                }, i * 100);
+                            }
+                        }
+                        // Normal explosion for other types
+                        else {
+                            createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
+                        }
                         return true;
                     }
                 }
@@ -623,6 +1164,15 @@
                 
                 return particle.lifetime > 0;
             });
+            
+            // Update shockwaves if they exist
+            if (gameState.shockwaves && gameState.shockwaves.length > 0) {
+                gameState.shockwaves = gameState.shockwaves.filter(shockwave => {
+                    shockwave.radius += (shockwave.maxRadius - shockwave.radius) * 0.2;
+                    shockwave.lifetime--;
+                    return shockwave.lifetime > 0;
+                });
+            }
         }
 
         function updatePowerUps() {
@@ -677,10 +1227,11 @@
             // Calculate direction based on WASD keys
             let dx = 0, dy = 0;
             
-            if (gameState.keys['w']) dy = -1;
-            if (gameState.keys['s']) dy = 1;
-            if (gameState.keys['a']) dx = -1;
-            if (gameState.keys['d']) dx = 1;
+            // Check for WASD or arrow keys
+            if (gameState.keys['w'] || gameState.keys['arrowup']) dy = -1;
+            if (gameState.keys['s'] || gameState.keys['arrowdown']) dy = 1;
+            if (gameState.keys['a'] || gameState.keys['arrowleft']) dx = -1;
+            if (gameState.keys['d'] || gameState.keys['arrowright']) dx = 1;
             
             // Normalize if moving diagonally
             if (dx !== 0 && dy !== 0) {
@@ -829,17 +1380,21 @@
                 enemies: [],
                 powerUps: [],
                 currentWave: 1,
-                wavesTotal: 5,
+                wavesTotal: 10,
                 enemiesPerWave: 10,
                 enemiesDefeated: 0,
                 waveComplete: false,
                 gameOver: false,
                 gameWon: false,
                 particles: [],
+                shockwaves: [],
                 keys: {},
                 mousePos: { x: 0, y: 0 },
                 mouseDown: false,
-                enemyBullets: []
+                enemyBullets: [],
+                selectedWave: 1,
+                gameStarted: true,
+                lastKeyPress: {}
             };
             
             // Reset error state
@@ -847,8 +1402,100 @@
             reducedEffects = false;
             lastTime = 0;
             
+            // Hide wave selection menu
+            document.getElementById('waveSelectMenu').style.display = 'none';
+            
             // Close upgrade menu if open
             closeUpgradeMenu();
+            
+            // Clear any potentially stuck keys
+            resetKeyboardState();
+        }
+        
+        // Helper function to reset keyboard state
+        function resetKeyboardState() {
+            gameState.keys = {};
+            gameState.lastKeyPress = {};
+        }
+
+        function explodeBomber(bomber) {
+            // Create large explosion
+            const explosionRadius = 100;
+            
+            // Visual effect - big explosion
+            for (let i = 0; i < 40; i++) {
+                gameState.particles.push(createParticle(
+                    bomber.x, bomber.y,
+                    COLORS.ENEMY.BOMBER.CORE,
+                    5 + Math.random() * 3,
+                    4 + Math.random() * 4,
+                    50,
+                    true
+                ));
+            }
+            
+            // Check if player is caught in explosion
+            const dx = gameState.player.x - bomber.x;
+            const dy = gameState.player.y - bomber.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < explosionRadius + CONSTANTS.PLAYER.BASE_SIZE) {
+                // Calculate damage based on distance from center (more damage closer to center)
+                const damageFactor = 1 - (dist / (explosionRadius + CONSTANTS.PLAYER.BASE_SIZE));
+                const damage = Math.round(30 * damageFactor);
+                
+                // If shield is active, reduce shield instead of health
+                if (gameState.player.shield > 0) {
+                    gameState.player.shield -= damage * 2;
+                    if (gameState.player.shield < 0) gameState.player.shield = 0;
+                } else {
+                    gameState.player.health -= damage;
+                    
+                    // Check for game over
+                    if (gameState.player.health <= 0) {
+                        gameState.gameOver = true;
+                    }
+                }
+                
+                // Knockback effect
+                const knockbackForce = 10 * damageFactor;
+                const knockbackAngle = Math.atan2(dy, dx);
+                gameState.player.x += Math.cos(knockbackAngle) * knockbackForce;
+                gameState.player.y += Math.sin(knockbackAngle) * knockbackForce;
+            }
+            
+            // Create shockwave effect
+            const shockwave = {
+                x: bomber.x,
+                y: bomber.y,
+                radius: 10,
+                maxRadius: explosionRadius,
+                lifetime: 20,
+                color: COLORS.ENEMY.BOMBER.GLOW
+            };
+            
+            gameState.shockwaves = gameState.shockwaves || [];
+            gameState.shockwaves.push(shockwave);
+        }
+        
+        function createTeleportEffect(x, y) {
+            // Visual effect for teleportation
+            for (let i = 0; i < 20; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 30;
+                
+                gameState.particles.push({
+                    x: x + Math.cos(angle) * distance,
+                    y: y + Math.sin(angle) * distance,
+                    dx: Math.cos(angle) * 2,
+                    dy: Math.sin(angle) * 2,
+                    size: 3 + Math.random() * 2,
+                    color: COLORS.ENEMY.ELITE.CORE,
+                    lifetime: 20,
+                    alpha: 1,
+                    glow: true
+                });
+            }
         }
 
         // Drawing functions
@@ -863,6 +1510,7 @@
 
             // Draw game elements
             drawParticles();
+            drawShockwaves();
             drawPowerUps();
             drawEnemies();
             drawBullets();
@@ -959,6 +1607,19 @@
             }
         }
 
+        function drawShockwaves() {
+            if (!gameState.shockwaves || gameState.shockwaves.length === 0) return;
+            
+            gameState.shockwaves.forEach(shockwave => {
+                const alpha = shockwave.lifetime / 20;
+                ctx.beginPath();
+                ctx.arc(shockwave.x, shockwave.y, shockwave.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = shockwave.color.replace(')', `, ${alpha})`);
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            });
+        }
+
         function drawPowerUps() {
             gameState.powerUps.forEach(powerUp => {
                 drawGlow(powerUp.x, powerUp.y, 30, 
@@ -1025,8 +1686,23 @@
 
         function drawEnemies() {
             gameState.enemies.forEach(enemy => {
-                drawGlow(enemy.x, enemy.y, enemy.size + 10, 
-                        COLORS.ENEMY[enemy.type].GLOW.replace(')', ', 0.3)'));
+                // Special rendering for bomber when flashing
+                if (enemy.type === 'BOMBER' && enemy.flashColor) {
+                    drawGlow(enemy.x, enemy.y, enemy.size + 15, 
+                            'rgba(255, 255, 255, 0.5)');
+                } else {
+                    drawGlow(enemy.x, enemy.y, enemy.size + 10, 
+                            COLORS.ENEMY[enemy.type].GLOW.replace(')', ', 0.3)'));
+                }
+                
+                // Draw elite shield if applicable
+                if (enemy.type === 'ELITE' && enemy.shield > 0) {
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.size + 5, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${enemy.shield / 100})`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
                 
                 ctx.beginPath();
                 ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
@@ -1054,13 +1730,32 @@
             // Draw enemy bullets if they exist
             if (gameState.enemyBullets) {
                 gameState.enemyBullets.forEach(bullet => {
-                    drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
-                            'rgba(255, 0, 0, 0.3)');
-                    
-                    ctx.beginPath();
-                    ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
-                    ctx.fillStyle = '#FF4040';
-                    ctx.fill();
+                    // Different bullet appearances based on enemy type
+                    if (bullet.fromElite) {
+                        drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
+                                'rgba(255, 215, 0, 0.3)');
+                        
+                        ctx.beginPath();
+                        ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
+                        ctx.fillStyle = '#FFD700';
+                        ctx.fill();
+                    } else if (bullet.fromShooter) {
+                        drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
+                                'rgba(147, 112, 219, 0.3)');
+                        
+                        ctx.beginPath();
+                        ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
+                        ctx.fillStyle = '#9370DB';
+                        ctx.fill();
+                    } else {
+                        drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
+                                'rgba(255, 0, 0, 0.3)');
+                        
+                        ctx.beginPath();
+                        ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
+                        ctx.fillStyle = '#FF4040';
+                        ctx.fill();
+                    }
                 });
             }
         }
@@ -1115,7 +1810,10 @@
             ctx.fillStyle = 'white';
             ctx.font = '24px "Segoe UI"';
             ctx.fillText(`Final Score: ${gameState.player.score}`, canvas.width/2, canvas.height/2 + 50);
-            ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2 + 90);
+            ctx.fillText('Press R to restart game', canvas.width/2, canvas.height/2 + 90);
+            
+            // Ensure the wave selection menu is initialized for when player returns
+            initWaveSelectionMenu();
             
             ctx.textAlign = 'left';
         }
@@ -1124,7 +1822,7 @@
         let lastTime = 0;
         let frameCount = 0;
         let fpsTimer = 0;
-        let gamePaused = false;
+        let gamePaused = true;
         let reducedEffects = false;
         
         function gameLoop(timestamp) {
@@ -1150,6 +1848,9 @@
                 // Reset FPS counter
                 frameCount = 0;
                 fpsTimer = 0;
+                
+                // Periodically clear any potentially stuck keys
+                checkForStuckKeys();
             }
             
             // Skip frame if running too slow (prevents spiral of death)
@@ -1164,10 +1865,18 @@
                     updateGame();
                 }
                 draw();
+                
+                // Draw the menu when game is not started
+                if (!gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                    document.getElementById('waveSelectMenu').style.display = 'flex';
+                } else {
+                    document.getElementById('waveSelectMenu').style.display = 'none';
+                }
             } catch (error) {
                 // Error recovery - likely game state corruption
                 console.error("Game error:", error);
                 gamePaused = true;
+                resetKeyboardState(); // Clear keyboard state on error
                 // Show recovery UI
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1192,6 +1901,32 @@
                 lastTime = 0; // Reset delta time to prevent huge jumps
             }
         });
+
+        // Check for stuck keys
+        function checkForStuckKeys() {
+            // Check if player hasn't moved in 3 seconds despite keys being pressed
+            const now = Date.now();
+            let movementKeysPressed = false;
+            
+            if (gameState.keys['w'] || gameState.keys['arrowup'] || 
+                gameState.keys['s'] || gameState.keys['arrowdown'] ||
+                gameState.keys['a'] || gameState.keys['arrowleft'] ||
+                gameState.keys['d'] || gameState.keys['arrowright']) {
+                movementKeysPressed = true;
+            }
+            
+            // If movement keys are pressed but player position hasn't changed, reset keys
+            if (movementKeysPressed && gameState.player.trail.length > 0) {
+                const lastPos = gameState.player.trail[gameState.player.trail.length - 1];
+                const secondLastPos = gameState.player.trail.length > 1 ? 
+                    gameState.player.trail[gameState.player.trail.length - 2] : lastPos;
+                    
+                if (lastPos.x === secondLastPos.x && lastPos.y === secondLastPos.y) {
+                    // Player isn't moving despite keys being pressed - reset keyboard state
+                    resetKeyboardState();
+                }
+            }
+        }
 
         // Start the game with the optimized loop
         requestAnimationFrame(gameLoop);
