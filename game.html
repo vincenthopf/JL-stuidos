@@ -590,7 +590,8 @@
                     if (gameState.currentWave >= gameState.wavesTotal) {
                         gameState.gameWon = true;
                     } else {
-                        // Show upgrade menu
+                        // Show upgrade menu and pause the game
+                        gamePaused = true;
                         showUpgradeMenu();
                     }
                 }, 500);
@@ -641,6 +642,8 @@
         
         function closeUpgradeMenu() {
             document.getElementById('upgradeMenu').style.display = 'none';
+            // Resume the game after upgrade is selected
+            gamePaused = false;
         }
         
         function startNextWave() {
