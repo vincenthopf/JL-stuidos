@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enhanced Space Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        canvas {
+            border: 2px solid rgba(88, 161, 247, 0.3);
+            box-shadow: 0 0 30px rgba(88, 161, 247, 0.2);
+            border-radius: 8px;
+            background: linear-gradient(to bottom, #000000, #0a0a2a);
+        }
+        #upgradeMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 42, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid rgba(88, 161, 247, 0.5);
+            box-shadow: 0 0 40px rgba(88, 161, 247, 0.3);
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+        .upgrade-button {
+            background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
+            border: 1px solid rgba(88, 161, 247, 0.5);
+            color: #fff;
+            padding: 15px;
+            margin: 8px;
+            cursor: pointer;
+            border-radius: 10px;
+            width: 220px;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            text-shadow: 0 0 10px rgba(88, 161, 247, 0.5);
+        }
+        .upgrade-button:hover {
+            background: linear-gradient(45deg, #2a2a6a, #3a3a8a);
+            box-shadow: 0 0 20px rgba(88, 161, 247, 0.3);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="upgradeMenu">
+        <h2 style="text-align: center; margin-bottom: 20px; color: #58A1F7;">Wave Complete!</h2>
+        <div id="upgradeOptions"></div>
+    </div>
+    <script>
+        // Initialize canvas
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 800;
+        canvas.height = 600;
+
+        // Game constants
+        const CONSTANTS = {
+            PLAYER: {
+                BASE_SIZE: 40,
+                BASE_SPEED: 5,
+                BASE_HEALTH: 100,
+                BASE_ENERGY: 100,
+                ENERGY_REGEN: 0.4,
+                SHOOT_COOLDOWN: 45,
+                SHOOT_COST: 20,
+                DASH_COOLDOWN: 30,
+                DASH_DISTANCE: 100
+            },
+            BULLET: {
+                SIZE: 8,
+                SPEED: 10,
+                LIFETIME: 60
+            },
+            POWER_UPS: {
+                SIZE: 20,
+                SPAWN_CHANCE: 0.002,
+                DURATION: 300
+            }
+        };
+
+        // Visual constants
+        const COLORS = {
+            PLAYER: {
+                CORE: '#58A1F7',
+                GLOW: '#1E90FF',
+                TRAIL: 'rgba(88, 161, 247, 0.3)'
+            },
+            BULLET: {
+                CORE: '#FFD700',
+                GLOW: '#FFA500'
+            },
+            POWER_UPS: {
+                RAPID_FIRE: '#00FF7F',
+                SHIELD: '#1E90FF',
+                MULTI_SHOT: '#FF4500'
+            },
+            ENEMY: {
+                NORMAL: {
+                    CORE: '#FF4040',
+                    GLOW: '#8B0000'
+                },
+                FAST: {
+                    CORE: '#FF8C00',
+                    GLOW: '#D2691E'
+                },
+                TANK: {
+                    CORE: '#8B0000',
+                    GLOW: '#4A0000'
+                }
+            }
+        };
+
+        // Initialize game state
+        let gameState = {
+            player: {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                speed: CONSTANTS.PLAYER.BASE_SPEED,
+                health: CONSTANTS.PLAYER.BASE_HEALTH,
+                maxHealth: CONSTANTS.PLAYER.BASE_HEALTH,
+                score: 0,
+                bullets: [],
+                dashCooldown: 0,
+                shootCooldown: 0,
+                energy: CONSTANTS.PLAYER.BASE_ENERGY,
+                maxEnergy: CONSTANTS.PLAYER.BASE_ENERGY,
+                trail: [],
+                powerUps: [],
+                shield: 0,
+                multiShot: false,
+                level: {
+                    damage: 1,
+                    speed: 1,
+                    health: 1,
+                    energy: 1
+                }
+            },
+            enemies: [],
+            powerUps: [],
+            currentWave: 1,
+            wavesTotal: 5,
+            enemiesPerWave: 10,
+            enemiesDefeated: 0,
+            waveComplete: false,
+            gameOver: false,
+            gameWon: false,
+            keys: {},
+            mousePos: { x: 0, y: 0 },
+            mouseDown: false,
+            particles: []
+        };
+
+        // Star field
+        const stars = Array(200).fill().map(() => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 2,
+            speed: 0.1 + Math.random() * 0.5
+        }));
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            gameState.keys[e.key.toLowerCase()] = true;
+            
+            // Restart game on 'r' key when game is over
+            if (e.key.toLowerCase() === 'r' && (gameState.gameOver || gameState.gameWon)) {
+                restartGame();
+            }
+            
+            // Dash on space key
+            if (e.key === ' ' && gameState.player.dashCooldown <= 0 && gameState.player.energy >= 30) {
+                dash();
+            }
+        });
+        document.addEventListener('keyup', (e) => gameState.keys[e.key.toLowerCase()] = false);
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            gameState.mousePos.x = e.clientX - rect.left;
+            gameState.mousePos.y = e.clientY - rect.top;
+        });
+        canvas.addEventListener('mousedown', () => gameState.mouseDown = true);
+        canvas.addEventListener('mouseup', () => gameState.mouseDown = false);
+
+        // Utility functions
+        function createParticle(x, y, color, speed, size, lifetime, glow = false) {
+            const angle = Math.random() * Math.PI * 2;
+            return {
+                x,
+                y,
+                dx: Math.cos(angle) * speed * (0.5 + Math.random()),
+                dy: Math.sin(angle) * speed * (0.5 + Math.random()),
+                size: size * (0.5 + Math.random()),
+                color,
+                glow,
+                lifetime: lifetime * (0.8 + Math.random() * 0.4),
+                alpha: 1
+            };
+        }
+
+        function drawGlow(x, y, radius, color) {
+            // Skip glow effects for off-screen elements
+            if (x < -radius || x > canvas.width + radius || 
+                y < -radius || y > canvas.height + radius) {
+                return;
+            }
+            
+            // Reduce the quality of glow effects for better performance
+            radius = Math.min(radius, 100); // Cap maximum radius
+            
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        }
+
+        // Game update functions
+        function updateGame() {
+            if (!gameState.gameOver && !gameState.gameWon) {
+                updatePlayer();
+                updateBullets();
+                updateEnemies();
+                updateParticles();
+                updatePowerUps();
+                checkWaveComplete();
+            }
+        }
+
+        function updatePlayer() {
+            const player = gameState.player;
+
+            // Movement
+            if (gameState.keys['w']) player.y -= player.speed;
+            if (gameState.keys['s']) player.y += player.speed;
+            if (gameState.keys['a']) player.x -= player.speed;
+            if (gameState.keys['d']) player.x += player.speed;
+
+            // Keep in bounds
+            player.x = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.width - CONSTANTS.PLAYER.BASE_SIZE, player.x));
+            player.y = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.height - CONSTANTS.PLAYER.BASE_SIZE, player.y));
+
+            // Update cooldowns
+            if (player.dashCooldown > 0) player.dashCooldown--;
+            if (player.shootCooldown > 0) player.shootCooldown--;
+            player.energy = Math.min(player.maxEnergy, player.energy + CONSTANTS.PLAYER.ENERGY_REGEN);
+            
+            // Decay shield
+            if (player.shield > 0) {
+                player.shield -= 0.1;
+            }
+
+            // Trail
+            player.trail.push({x: player.x, y: player.y});
+            if (player.trail.length > 10) player.trail.shift();
+
+            // Shooting
+            if (gameState.mouseDown && player.shootCooldown <= 0 && player.energy >= CONSTANTS.PLAYER.SHOOT_COST) {
+                shoot();
+            }
+        }
+
+        function shoot() {
+            const player = gameState.player;
+            const angle = Math.atan2(
+                gameState.mousePos.y - player.y,
+                gameState.mousePos.x - player.x
+            );
+
+            if (player.multiShot) {
+                // Create multiple bullets
+                for (let i = -2; i <= 2; i++) {
+                    const spreadAngle = angle + i * 0.1;
+                    player.bullets.push({
+                        x: player.x,
+                        y: player.y,
+                        dx: Math.cos(spreadAngle) * CONSTANTS.BULLET.SPEED,
+                        dy: Math.sin(spreadAngle) * CONSTANTS.BULLET.SPEED,
+                        lifetime: CONSTANTS.BULLET.LIFETIME
+                    });
+                }
+            } else {
+                // Create single bullet
+                player.bullets.push({
+                    x: player.x,
+                    y: player.y,
+                    dx: Math.cos(angle) * CONSTANTS.BULLET.SPEED,
+                    dy: Math.sin(angle) * CONSTANTS.BULLET.SPEED,
+                    lifetime: CONSTANTS.BULLET.LIFETIME
+                });
+            }
+
+            player.shootCooldown = CONSTANTS.PLAYER.SHOOT_COOLDOWN;
+            player.energy -= CONSTANTS.PLAYER.SHOOT_COST;
+
+            // Muzzle flash effect
+            for (let i = 0; i < 5; i++) {
+                gameState.particles.push(createParticle(
+                    player.x, player.y,
+                    COLORS.BULLET.CORE,
+                    3, 4, 15,
+                    true
+                ));
+            }
+        }
+
+        function updateBullets() {
+            // Limit maximum number of bullets
+            if (gameState.player.bullets.length > 50) {
+                gameState.player.bullets = gameState.player.bullets.slice(-50);
+            }
+            
+            gameState.player.bullets = gameState.player.bullets.filter(bullet => {
+                bullet.x += bullet.dx;
+                bullet.y += bullet.dy;
+                bullet.lifetime--;
+
+                // Reduce particle generation probability for better performance
+                if (Math.random() < 0.1) {
+                    gameState.particles.push(createParticle(
+                        bullet.x, bullet.y,
+                        COLORS.BULLET.GLOW,
+                        1, 2, 10,
+                        true
+                    ));
+                }
+                
+                // Remove bullets that go off-screen
+                if (bullet.x < 0 || bullet.x > canvas.width || 
+                    bullet.y < 0 || bullet.y > canvas.height) {
+                    return false;
+                }
+
+                return bullet.lifetime > 0;
+            });
+        }
+
+        function updateEnemies() {
+            // Spawn enemies
+            if (!gameState.waveComplete && gameState.enemies.length < 5 && 
+                gameState.enemiesDefeated < gameState.enemiesPerWave) {
+                if (Math.random() < 0.02) {
+                    spawnEnemy();
+                }
+            }
+
+            // Update existing enemies
+            gameState.enemies = gameState.enemies.filter(enemy => {
+                const dx = gameState.player.x - enemy.x;
+                const dy = gameState.player.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                enemy.x += (dx / dist) * enemy.speed;
+                enemy.y += (dy / dist) * enemy.speed;
+
+                // Reduce particle generation probability for better performance
+                if (Math.random() < 0.05) {
+                    gameState.particles.push(createParticle(
+                        enemy.x, enemy.y,
+                        COLORS.ENEMY.NORMAL.GLOW,
+                        1, 3, 20,
+                        true
+                    ));
+                }
+
+                // Check collisions
+                return !checkEnemyCollisions(enemy, dist);
+            });
+        }
+
+        function spawnEnemy() {
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+
+            switch(side) {
+                case 0: x = Math.random() * canvas.width; y = -20; break;
+                case 1: x = canvas.width + 20; y = Math.random() * canvas.height; break;
+                case 2: x = Math.random() * canvas.width; y = canvas.height + 20; break;
+                case 3: x = -20; y = Math.random() * canvas.height; break;
+            }
+
+            gameState.enemies.push({
+                x,
+                y,
+                speed: 2 + Math.random() * 2,
+                health: 100,
+                maxHealth: 100
+            });
+        }
+
+        function checkEnemyCollisions(enemy, dist) {
+            // Check collision with player
+            if (dist < CONSTANTS.PLAYER.BASE_SIZE) {
+                // If shield is active, reduce shield instead of health
+                if (gameState.player.shield > 0) {
+                    gameState.player.shield -= 50;
+                    if (gameState.player.shield < 0) gameState.player.shield = 0;
+                } else {
+                    gameState.player.health -= 10;
+                    
+                    // Check for game over
+                    if (gameState.player.health <= 0) {
+                        gameState.gameOver = true;
+                    }
+                }
+                createExplosion(enemy.x, enemy.y, COLORS.ENEMY.NORMAL.CORE);
+                return true;
+            }
+
+            // Check collision with bullets
+            for (let i = gameState.player.bullets.length - 1; i >= 0; i--) {
+                const bullet = gameState.player.bullets[i];
+                const bulletDist = Math.sqrt(
+                    (bullet.x - enemy.x) * (bullet.x - enemy.x) +
+                    (bullet.y - enemy.y) * (bullet.y - enemy.y)
+                );
+
+                if (bulletDist < CONSTANTS.BULLET.SIZE + 20) {
+                    // Apply damage based on player's damage level
+                    enemy.health -= 25 * gameState.player.level.damage;
+                    gameState.player.bullets.splice(i, 1);
+
+                    if (enemy.health <= 0) {
+                        gameState.player.score += 100;
+                        gameState.enemiesDefeated++;
+                        createExplosion(enemy.x, enemy.y, COLORS.ENEMY.NORMAL.CORE);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 20; i++) {
+                gameState.particles.push(createParticle(
+                    x, y,
+                    color,
+                    4 + Math.random() * 2,
+                    3 + Math.random() * 2,
+                    30,
+                    true
+                ));
+            }
+        }
+
+        function updateParticles() {
+            // More aggressive particle management - this is often a major cause of slowdown
+            // Limit the number of particles based on how many enemies are on screen
+            const maxParticles = 100 + Math.min(gameState.enemies.length * 20, 100);
+            if (gameState.particles.length > maxParticles) {
+                // Keep newest particles which are usually more relevant
+                gameState.particles = gameState.particles.slice(-maxParticles);
+            }
+            
+            gameState.particles = gameState.particles.filter(particle => {
+                particle.x += particle.dx;
+                particle.y += particle.dy;
+                particle.lifetime--;
+                particle.alpha = particle.lifetime / 30;
+                
+                // Remove particles that go off-screen to save processing
+                if (particle.x < 0 || particle.x > canvas.width || 
+                    particle.y < 0 || particle.y > canvas.height) {
+                    return false;
+                }
+                
+                return particle.lifetime > 0;
+            });
+        }
+
+        function updatePowerUps() {
+            // Spawn power-ups
+            if (Math.random() < 0.001) {
+                const powerUpType = Math.random() < 0.5 ? 'shield' : 'multiShot';
+                
+                // Verify that the type's color exists in COLORS.POWER_UPS before adding
+                if (COLORS.POWER_UPS[powerUpType.toUpperCase()]) {
+                    gameState.powerUps.push({
+                        x: Math.random() * (canvas.width - 40) + 20,
+                        y: Math.random() * (canvas.height - 40) + 20,
+                        type: powerUpType,
+                        duration: 300
+                    });
+                }
+            }
+
+            // Update existing power-ups
+            gameState.powerUps = gameState.powerUps.filter(powerUp => {
+                // Safety check for invalid power-ups
+                if (!powerUp || !powerUp.type) return false;
+                
+                try {
+                    const dx = gameState.player.x - powerUp.x;
+                    const dy = gameState.player.y - powerUp.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < CONSTANTS.PLAYER.BASE_SIZE + 20) {
+                        if (powerUp.type === 'shield') {
+                            gameState.player.shield = 100;
+                        } else if (powerUp.type === 'multiShot') {
+                            gameState.player.multiShot = true;
+                            setTimeout(() => {
+                                gameState.player.multiShot = false;
+                            }, 5000);
+                        }
+                        createExplosion(powerUp.x, powerUp.y, COLORS.POWER_UPS[powerUp.type.toUpperCase()]);
+                        return false;
+                    }
+                    return true;
+                } catch (e) {
+                    // If there's an error with this power-up, remove it
+                    console.log("Power-up error:", e);
+                    return false;
+                }
+            });
+        }
+
+        function dash() {
+            const player = gameState.player;
+            // Calculate direction based on WASD keys
+            let dx = 0, dy = 0;
+            
+            if (gameState.keys['w']) dy = -1;
+            if (gameState.keys['s']) dy = 1;
+            if (gameState.keys['a']) dx = -1;
+            if (gameState.keys['d']) dx = 1;
+            
+            // Normalize if moving diagonally
+            if (dx !== 0 && dy !== 0) {
+                const norm = Math.sqrt(dx * dx + dy * dy);
+                dx /= norm;
+                dy /= norm;
+            }
+            
+            // If no direction keys pressed, dash toward mouse
+            if (dx === 0 && dy === 0) {
+                const angle = Math.atan2(
+                    gameState.mousePos.y - player.y,
+                    gameState.mousePos.x - player.x
+                );
+                dx = Math.cos(angle);
+                dy = Math.sin(angle);
+            }
+            
+            // Apply dash
+            player.x += dx * CONSTANTS.PLAYER.DASH_DISTANCE;
+            player.y += dy * CONSTANTS.PLAYER.DASH_DISTANCE;
+            
+            // Keep in bounds
+            player.x = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.width - CONSTANTS.PLAYER.BASE_SIZE, player.x));
+            player.y = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.height - CONSTANTS.PLAYER.BASE_SIZE, player.y));
+            
+            // Set cooldown and energy cost
+            player.dashCooldown = CONSTANTS.PLAYER.DASH_COOLDOWN;
+            player.energy -= 30;
+            
+            // Create dash effect
+            for (let i = 0; i < 15; i++) {
+                gameState.particles.push(createParticle(
+                    player.x, player.y,
+                    COLORS.PLAYER.CORE,
+                    3, 4, 20,
+                    true
+                ));
+            }
+        }
+        
+        function checkWaveComplete() {
+            if (!gameState.waveComplete && gameState.enemiesDefeated >= gameState.enemiesPerWave) {
+                gameState.waveComplete = true;
+                
+                // Add a slight delay before showing the menu to prevent UI issues
+                setTimeout(() => {
+                    // Check if all waves completed
+                    if (gameState.currentWave >= gameState.wavesTotal) {
+                        gameState.gameWon = true;
+                    } else {
+                        // Show upgrade menu
+                        showUpgradeMenu();
+                    }
+                }, 500);
+            }
+        }
+        
+        function showUpgradeMenu() {
+            const upgradeMenu = document.getElementById('upgradeMenu');
+            const upgradeOptions = document.getElementById('upgradeOptions');
+            
+            // Make sure we're not already showing the menu
+            if (upgradeMenu.style.display === 'block') {
+                return;
+            }
+            
+            // Clear previous options
+            upgradeOptions.innerHTML = '';
+            
+            // Create upgrade buttons
+            const upgrades = [
+                { name: 'Increase Damage', effect: () => { gameState.player.level.damage += 0.5; } },
+                { name: 'Increase Speed', effect: () => { gameState.player.speed += 1; } },
+                { name: 'Increase Health', effect: () => { 
+                    gameState.player.maxHealth += 25; 
+                    gameState.player.health = gameState.player.maxHealth;
+                }},
+                { name: 'Increase Energy', effect: () => { 
+                    gameState.player.maxEnergy += 25; 
+                    gameState.player.energy = gameState.player.maxEnergy;
+                }}
+            ];
+            
+            upgrades.forEach(upgrade => {
+                const button = document.createElement('button');
+                button.className = 'upgrade-button';
+                button.textContent = upgrade.name;
+                button.onclick = () => {
+                    upgrade.effect();
+                    closeUpgradeMenu();
+                    startNextWave();
+                };
+                upgradeOptions.appendChild(button);
+            });
+            
+            // Show menu
+            upgradeMenu.style.display = 'block';
+        }
+        
+        function closeUpgradeMenu() {
+            document.getElementById('upgradeMenu').style.display = 'none';
+        }
+        
+        function startNextWave() {
+            gameState.currentWave++;
+            gameState.enemiesDefeated = 0;
+            gameState.waveComplete = false;
+            
+            // Increase difficulty
+            gameState.enemiesPerWave += 5;
+            
+            // Clear any existing enemies to ensure clean wave transition
+            gameState.enemies = [];
+        }
+        
+        function restartGame() {
+            // Reset game state
+            gameState = {
+                player: {
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    speed: CONSTANTS.PLAYER.BASE_SPEED,
+                    health: CONSTANTS.PLAYER.BASE_HEALTH,
+                    maxHealth: CONSTANTS.PLAYER.BASE_HEALTH,
+                    score: 0,
+                    bullets: [],
+                    dashCooldown: 0,
+                    shootCooldown: 0,
+                    energy: CONSTANTS.PLAYER.BASE_ENERGY,
+                    maxEnergy: CONSTANTS.PLAYER.BASE_ENERGY,
+                    trail: [],
+                    powerUps: [],
+                    shield: 0,
+                    multiShot: false,
+                    level: {
+                        damage: 1,
+                        speed: 1,
+                        health: 1,
+                        energy: 1
+                    }
+                },
+                enemies: [],
+                powerUps: [],
+                currentWave: 1,
+                wavesTotal: 5,
+                enemiesPerWave: 10,
+                enemiesDefeated: 0,
+                waveComplete: false,
+                gameOver: false,
+                gameWon: false,
+                particles: [],
+                keys: {},
+                mousePos: { x: 0, y: 0 },
+                mouseDown: false
+            };
+            
+            // Reset error state
+            gamePaused = false;
+            reducedEffects = false;
+            lastTime = 0;
+            
+            // Close upgrade menu if open
+            closeUpgradeMenu();
+        }
+
+        // Drawing functions
+        function draw() {
+            // Clear canvas with a complete black fill instead of partial transparency 
+            // to prevent slowdown from too many accumulated transparency layers
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw starfield
+            drawStars();
+
+            // Draw game elements
+            drawParticles();
+            drawPowerUps();
+            drawEnemies();
+            drawBullets();
+            drawPlayer();
+            drawUI();
+
+            // Draw game state messages
+            if (gameState.gameOver) {
+                drawGameOver();
+            } else if (gameState.gameWon) {
+                drawVictory();
+            }
+        }
+
+        function drawStars() {
+            stars.forEach(star => {
+                star.y += star.speed;
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+                
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.speed})`;
+                ctx.fill();
+            });
+        }
+
+        function drawParticles() {
+            // Safety check for particles (prevent error)
+            if (!gameState.particles || !Array.isArray(gameState.particles)) {
+                gameState.particles = [];
+                return;
+            }
+            
+            // Draw batch of particles instead of individually
+            const simpleParticles = [];
+            const glowParticles = [];
+            
+            // Split particles into glow and simple for batch processing
+            gameState.particles.forEach(particle => {
+                if (particle && particle.glow) {
+                    glowParticles.push(particle);
+                } else if (particle) {
+                    simpleParticles.push(particle);
+                }
+            });
+            
+            // Draw glow particles (these are more expensive)
+            glowParticles.forEach(particle => {
+                try {
+                    // Skip invalid particles
+                    if (!particle || typeof particle.color !== 'string') return;
+                    
+                    // Apply reduced effects if needed
+                    if (reducedEffects && Math.random() > 0.5) return;
+                    
+                    // Safely replace color with alpha
+                    let colorWithAlpha;
+                    try {
+                        colorWithAlpha = particle.color.replace(')', `, ${particle.alpha * 0.5})`);
+                    } catch (e) {
+                        colorWithAlpha = 'rgba(255,255,255,0.5)';
+                    }
+                    
+                    drawGlow(particle.x, particle.y, particle.size * 2, colorWithAlpha);
+                    
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    ctx.fillStyle = particle.color.replace(')', `, ${particle.alpha})`);
+                    ctx.fill();
+                } catch (e) {
+                    // Silently ignore drawing errors for individual particles
+                    console.log("Particle draw error:", e);
+                }
+            });
+            
+            // Draw simple particles in batches for better performance
+            if (simpleParticles.length > 0) {
+                try {
+                    ctx.beginPath();
+                    simpleParticles.forEach(particle => {
+                        if (!particle) return;
+                        ctx.moveTo(particle.x, particle.y);
+                        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    });
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.fill();
+                } catch (e) {
+                    // Skip batch if there's an error
+                    console.log("Simple particles batch error:", e);
+                }
+            }
+        }
+
+        function drawPowerUps() {
+            gameState.powerUps.forEach(powerUp => {
+                drawGlow(powerUp.x, powerUp.y, 30, 
+                        COLORS.POWER_UPS[powerUp.type.toUpperCase()].replace(')', ', 0.3)'));
+                
+                ctx.beginPath();
+                ctx.arc(powerUp.x, powerUp.y, 15, 0, Math.PI * 2);
+                ctx.fillStyle = COLORS.POWER_UPS[powerUp.type.toUpperCase()];
+                ctx.fill();
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+
+        function drawPlayer() {
+            const player = gameState.player;
+
+            // Draw trail
+            player.trail.forEach((pos, i) => {
+                const alpha = i / player.trail.length;
+                drawGlow(pos.x, pos.y, 20, `rgba(88, 161, 247, ${alpha * 0.2})`);
+            });
+
+            // Draw shield if active
+            if (player.shield > 0) {
+                drawGlow(player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE + 20, 
+                        `rgba(88, 161, 247, ${player.shield / 200})`);
+                
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE + 10, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(88, 161, 247, ${player.shield / 100})`;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            // Draw player
+            drawGlow(player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE, 
+                    COLORS.PLAYER.GLOW.replace(')', ', 0.5)'));
+            
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE/2, 0, Math.PI * 2);
+            const gradient = ctx.createRadialGradient(
+                player.x, player.y, 0,
+                player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE/2
+            );
+            gradient.addColorStop(0, COLORS.PLAYER.CORE);
+            gradient.addColorStop(1, COLORS.PLAYER.GLOW);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
+
+        function drawBullets() {
+            gameState.player.bullets.forEach(bullet => {
+                drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
+                        COLORS.BULLET.GLOW.replace(')', ', 0.3)'));
+                
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
+                ctx.fillStyle = COLORS.BULLET.CORE;
+                ctx.fill();
+            });
+        }
+
+        function drawEnemies() {
+            gameState.enemies.forEach(enemy => {
+                drawGlow(enemy.x, enemy.y, 30, 
+                        COLORS.ENEMY.NORMAL.GLOW.replace(')', ', 0.3)'));
+                
+                ctx.beginPath();
+                ctx.arc(enemy.x, enemy.y, 20, 0, Math.PI * 2);
+                const gradient = ctx.createRadialGradient(
+                    enemy.x, enemy.y, 0,
+                    enemy.x, enemy.y, 20
+                );
+                gradient.addColorStop(0, COLORS.ENEMY.NORMAL.CORE);
+                gradient.addColorStop(1, COLORS.ENEMY.NORMAL.GLOW);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                // Health bar
+                const healthWidth = 40;
+                const healthHeight = 4;
+                const healthX = enemy.x - healthWidth/2;
+                const healthY = enemy.y - 30;
+
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+                ctx.fillRect(healthX, healthY, healthWidth * (enemy.health / enemy.maxHealth), healthHeight);
+            });
+        }
+
+        function drawUI() {
+            // Health bar
+            const healthWidth = 200;
+            const healthHeight = 20;
+            drawBar(10, 10, healthWidth, healthHeight, 
+                   gameState.player.health / gameState.player.maxHealth,
+                   'rgba(255, 50, 50, 0.8)', 'rgba(255, 0, 0, 0.3)');
+
+            // Energy bar
+            drawBar(10, 40, healthWidth, healthHeight,
+                   gameState.player.energy / gameState.player.maxEnergy,
+                   'rgba(50, 150, 255, 0.8)', 'rgba(0, 100, 255, 0.3)');
+
+            // Score and wave info
+            ctx.fillStyle = 'white';
+            ctx.font = '20px "Segoe UI"';
+            ctx.fillText(`Score: ${gameState.player.score}`, 10, 80);
+            ctx.fillText(`Wave: ${gameState.currentWave}/${gameState.wavesTotal}`, 10, 110);
+            ctx.fillText(`Enemies: ${gameState.enemiesDefeated}/${gameState.enemiesPerWave}`, 10, 140);
+        }
+
+        function drawBar(x, y, width, height, fillPercent, fillColor, backgroundColor) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(x, y, width, height);
+            ctx.fillStyle = backgroundColor;
+            ctx.fillRect(x, y, width * fillPercent, height);
+            ctx.fillStyle = fillColor;
+            ctx.fillRect(x, y, width * fillPercent, height * 0.8);
+        }
+
+        function drawGameOver() {
+            drawEndScreen('Game Over', 'red');
+        }
+
+        function drawVictory() {
+            drawEndScreen('Victory!', 'gold');
+        }
+
+        function drawEndScreen(text, color) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = color;
+            ctx.font = '48px "Segoe UI"';
+            ctx.textAlign = 'center';
+            ctx.fillText(text, canvas.width/2, canvas.height/2);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = '24px "Segoe UI"';
+            ctx.fillText(`Final Score: ${gameState.player.score}`, canvas.width/2, canvas.height/2 + 50);
+            ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2 + 90);
+            
+            ctx.textAlign = 'left';
+        }
+
+        // Game loop with performance optimization
+        let lastTime = 0;
+        let frameCount = 0;
+        let fpsTimer = 0;
+        let gamePaused = false;
+        let reducedEffects = false;
+        
+        function gameLoop(timestamp) {
+            // Calculate time since last frame
+            if (!lastTime) lastTime = timestamp;
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+            
+            // FPS monitoring
+            frameCount++;
+            fpsTimer += deltaTime;
+            
+            if (fpsTimer > 1000) {
+                // If FPS drops below 30, reduce particle effects
+                const fps = frameCount / (fpsTimer / 1000);
+                if (fps < 30) {
+                    // Auto-tune performance settings
+                    reducedEffects = true;
+                } else {
+                    reducedEffects = false;
+                }
+                
+                // Reset FPS counter
+                frameCount = 0;
+                fpsTimer = 0;
+            }
+            
+            // Skip frame if running too slow (prevents spiral of death)
+            if (deltaTime > 100) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            // Process game logic and render
+            try {
+                if (!gameState.gameOver && !gameState.gameWon && !gamePaused) {
+                    updateGame();
+                }
+                draw();
+            } catch (error) {
+                // Error recovery - likely game state corruption
+                console.error("Game error:", error);
+                gamePaused = true;
+                // Show recovery UI
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'red';
+                ctx.font = '24px "Segoe UI"';
+                ctx.textAlign = 'center';
+                ctx.fillText('Game Error Detected', canvas.width/2, canvas.height/2 - 40);
+                ctx.fillStyle = 'white';
+                ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2);
+                ctx.textAlign = 'left';
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Handle visibility change to pause game when tab is inactive
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                gamePaused = true;
+            } else {
+                gamePaused = false;
+                lastTime = 0; // Reset delta time to prevent huge jumps
+            }
+        });
+
+        // Start the game with the optimized loop
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html> 
