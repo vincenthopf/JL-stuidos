@@ -172,7 +172,7 @@
             },
             POWER_UPS: {
                 SIZE: 20,
-                SPAWN_CHANCE: 0.002,
+                SPAWN_CHANCE: 0.003,  // Reduced from 0.01 to 0.003 for less frequent spawns
                 DURATION: 300
             }
         };
@@ -191,7 +191,10 @@
             POWER_UPS: {
                 RAPID_FIRE: '#00FF7F',
                 SHIELD: '#1E90FF',
-                MULTI_SHOT: '#FF4500'
+                MULTI_SHOT: '#FF4500',
+                SPEED_BOOST: '#FFFF00', 
+                HEALTH_RESTORE: '#FF69B4',
+                TIME_WARP: '#9932CC'
             },
             ENEMY: {
                 NORMAL: {
@@ -504,6 +507,20 @@
                 }
             }
 
+            // Decrement cooldowns
+            if (player.dashCooldown > 0) player.dashCooldown--;
+            
+            // Update health restored indicator
+            if (gameState.healthRestoredTime > 0) {
+                gameState.healthRestoredTime--;
+            }
+            
+            // Apply rapid fire effect to shoot cooldown if active
+            if (player.shootCooldown > 0) {
+                const cooldownRate = player.rapidFire ? 3 : 1; // Rapid fire reduces cooldown 3x faster
+                player.shootCooldown -= cooldownRate;
+            }
+
             // Movement with improved handling
             let moveX = 0, moveY = 0;
             
@@ -632,6 +649,9 @@
                 }
             }
 
+            // Apply time warp speed reduction if active
+            const speedMultiplier = gameState.timeWarpActive ? 0.4 : 1.0; // Reduce enemy speed by 60% during time warp
+
             // Update existing enemies
             gameState.enemies = gameState.enemies.filter(enemy => {
                 const dx = gameState.player.x - enemy.x;
@@ -640,131 +660,64 @@
 
                 // Movement behavior based on enemy type
                 if (enemy.type === 'SHOOTER') {
-                    // Shooter enemies maintain distance and shoot
-                    if (dist < 200) {
+                    // Shooter tries to maintain distance
+                    if (dist < 300) {
                         // Move away from player if too close
-                        enemy.x -= (dx / dist) * enemy.speed * 0.5;
-                        enemy.y -= (dy / dist) * enemy.speed * 0.5;
-                    } else if (dist > 450) { // Increased optimal range from 300 to 450
-                        // Move closer if too far
-                        enemy.x += (dx / dist) * enemy.speed * 0.5;
-                        enemy.y += (dy / dist) * enemy.speed * 0.5;
+                        enemy.x -= (dx / dist) * enemy.speed * 0.5 * speedMultiplier;
+                        enemy.y -= (dy / dist) * enemy.speed * 0.5 * speedMultiplier;
+                    } else if (dist > 400) {
+                        // Move toward player if too far
+                        enemy.x += (dx / dist) * enemy.speed * 0.5 * speedMultiplier;
+                        enemy.y += (dy / dist) * enemy.speed * 0.5 * speedMultiplier;
                     } else {
-                        // Strafe around player when at optimal range
-                        const strafeAngle = Math.atan2(dy, dx) + Math.PI/2;
-                        const strafeDirection = Math.random() > 0.5 ? 1 : -1;
-                        enemy.x += Math.cos(strafeAngle) * enemy.speed * 0.3 * strafeDirection;
-                        enemy.y += Math.sin(strafeAngle) * enemy.speed * 0.3 * strafeDirection;
-                    }
-                    
-                    // Handle shooter cooldown and shoot at player
-                    enemy.bulletCooldown--;
-                    if (enemy.bulletCooldown <= 0 && dist < 600) { // Increased shooting range from 400 to 600
-                        // Predictive shooting - anticipate player movement
-                        let targetX = gameState.player.x;
-                        let targetY = gameState.player.y;
-                        
-                        // Calculate player velocity vector based on key inputs
-                        let playerVelocityX = 0;
-                        let playerVelocityY = 0;
-                        
-                        if (gameState.keys['w']) playerVelocityY = -gameState.player.speed;
-                        if (gameState.keys['s']) playerVelocityY = gameState.player.speed;
-                        if (gameState.keys['a']) playerVelocityX = -gameState.player.speed;
-                        if (gameState.keys['d']) playerVelocityX = gameState.player.speed;
-                        
-                        // Predict player position based on current movement
-                        const predictionFactor = dist / 20; // Adjust prediction based on distance
-                        targetX += playerVelocityX * predictionFactor;
-                        targetY += playerVelocityY * predictionFactor;
-                        
-                        // Calculate angle to predicted position
-                        const predictedDx = targetX - enemy.x;
-                        const predictedDy = targetY - enemy.y;
-                        const bulletAngle = Math.atan2(predictedDy, predictedDx);
-                        
-                        // Bullet speed increases in later waves for more challenge
-                        const bulletSpeed = 5 + Math.min(gameState.currentWave * 0.5, 4);
-                        
-                        // Create enemy bullet
-                        gameState.enemyBullets = gameState.enemyBullets || [];
-                        gameState.enemyBullets.push({
-                            x: enemy.x,
-                            y: enemy.y,
-                            dx: Math.cos(bulletAngle) * bulletSpeed,
-                            dy: Math.sin(bulletAngle) * bulletSpeed,
-                            lifetime: 80, // Increased bullet lifetime from 60 to 80
-                            fromShooter: true
-                        });
-                        
-                        // Add bullet visual effect
-                        for (let i = 0; i < 3; i++) {
-                            gameState.particles.push(createParticle(
-                                enemy.x, enemy.y,
-                                COLORS.ENEMY.SHOOTER.CORE,
-                                2, 3, 10,
-                                true
-                            ));
-                        }
-                        
-                        // Reset cooldown - faster firing rate in later waves
-                        enemy.bulletCooldown = Math.max(40, 100 - (gameState.currentWave * 6));
+                        // Strafe around the player if at good distance
+                        const strafeAngle = Math.atan2(dy, dx) + Math.PI / 2;
+                        const strafeDirection = Math.sin(Date.now() / 1000) > 0 ? 1 : -1;
+                        enemy.x += Math.cos(strafeAngle) * enemy.speed * 0.3 * strafeDirection * speedMultiplier;
+                        enemy.y += Math.sin(strafeAngle) * enemy.speed * 0.3 * strafeDirection * speedMultiplier;
                     }
                 } else if (enemy.type === 'BOMBER') {
-                    // Bomber enemy - charges at player and explodes
+                    // Bomber approaches and explodes
+                    // Update charge timer
+                    enemy.chargeTimer--;
                     
-                    // Initialize explosion timer if not set
-                    enemy.explosionTimer = enemy.explosionTimer || 180;
-                    enemy.isCharging = enemy.isCharging || false;
-                    enemy.chargeTarget = enemy.chargeTarget || {x: 0, y: 0};
+                    if (enemy.chargeTimer <= 0) {
+                        // Begin charge - pick target point near player
+                        enemy.chargeTarget = {
+                            x: gameState.player.x + (Math.random() - 0.5) * 200,
+                            y: gameState.player.y + (Math.random() - 0.5) * 200
+                        };
+                        enemy.charging = true;
+                        enemy.chargeTimer = 30; // Time to charge
+                    }
                     
-                    if (enemy.isCharging) {
-                        // Continue charging toward target
+                    if (enemy.charging) {
+                        // Move toward charge target
                         const chargeDx = enemy.chargeTarget.x - enemy.x;
                         const chargeDy = enemy.chargeTarget.y - enemy.y;
                         const chargeDist = Math.sqrt(chargeDx * chargeDx + chargeDy * chargeDy);
                         
-                        if (chargeDist > 5) {
-                            enemy.x += (chargeDx / chargeDist) * enemy.speed * 2.5;
-                            enemy.y += (chargeDy / chargeDist) * enemy.speed * 2.5;
+                        if (chargeDist > 10) {
+                            enemy.x += (chargeDx / chargeDist) * enemy.speed * 2.5 * speedMultiplier;
+                            enemy.y += (chargeDy / chargeDist) * enemy.speed * 2.5 * speedMultiplier;
                         } else {
-                            // Explode at target
-                            explodeBomber(enemy);
-                            return false; // Remove enemy
-                        }
-                        
-                        // Create trail effect
-                        if (Math.random() < 0.2) {
-                            gameState.particles.push(createParticle(
-                                enemy.x, enemy.y,
-                                COLORS.ENEMY.BOMBER.GLOW,
-                                1, 5, 20,
-                                true
-                            ));
+                            // Set up for next charge
+                            enemy.charging = false;
+                            enemy.chargeTimer = 60; // Cooldown before next charge
                         }
                     } else {
-                        // Normal movement until ready to charge
-                        enemy.x += (dx / dist) * enemy.speed * 0.7;
-                        enemy.y += (dy / dist) * enemy.speed * 0.7;
+                        // Circle around the player when not charging
+                        enemy.angle = (enemy.angle || 0) + 0.02 * speedMultiplier;
+                        const orbitDistance = 300;
+                        const targetX = gameState.player.x + Math.cos(enemy.angle) * orbitDistance;
+                        const targetY = gameState.player.y + Math.sin(enemy.angle) * orbitDistance;
                         
-                        // Count down to explosion
-                        enemy.explosionTimer--;
+                        const orbitDx = targetX - enemy.x;
+                        const orbitDy = targetY - enemy.y;
+                        const orbitDist = Math.sqrt(orbitDx * orbitDx + orbitDy * orbitDy);
                         
-                        // Flash when about to charge
-                        if (enemy.explosionTimer < 60 && enemy.explosionTimer % 10 < 5) {
-                            enemy.flashColor = true;
-                        } else {
-                            enemy.flashColor = false;
-                        }
-                        
-                        // Start charging
-                        if (enemy.explosionTimer <= 0) {
-                            enemy.isCharging = true;
-                            enemy.chargeTarget = {
-                                x: gameState.player.x,
-                                y: gameState.player.y
-                            };
-                        }
+                        enemy.x += (orbitDx / orbitDist) * enemy.speed * 0.7 * speedMultiplier;
+                        enemy.y += (orbitDy / orbitDist) * enemy.speed * 0.7 * speedMultiplier;
                     }
                 } else if (enemy.type === 'ELITE') {
                     // Elite enemy - has shields and teleports
@@ -828,23 +781,71 @@
                     }
                     
                     // Move toward player at variable speed
-                    const moveSpeed = enemy.speed * (0.5 + Math.sin(Date.now() / 1000) * 0.3);
-                    enemy.x += (dx / dist) * moveSpeed;
-                    enemy.y += (dy / dist) * moveSpeed;
+                    const moveSpeed = enemy.speed * (0.5 + Math.sin(Date.now() / 1000) * 0.3) * speedMultiplier;
                     
+                    // Enemy pathfinding
+                    if (Math.random() < 0.01) {
+                        // Occasional randomness to movement
+                        enemy.randomDir = {
+                            x: Math.random() * 2 - 1,
+                            y: Math.random() * 2 - 1
+                        };
+                    }
+                    
+                    // Blend direct path to player with some randomness
+                    const randomFactor = 0.2;
+                    enemy.x += ((dx / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.x : 0) * randomFactor) * enemy.speed * speedMultiplier;
+                    enemy.y += ((dy / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.y : 0) * randomFactor) * enemy.speed * speedMultiplier;
+                    
+                    // Create movement trail
+                    if (Math.random() < 0.05) {
+                        gameState.particles.push(createParticle(
+                            enemy.x, enemy.y,
+                            enemy.color || 'red',
+                            1, 
+                            enemy.size * 0.3,
+                            20
+                        ));
+                    }
                 } else {
-                    // Normal movement for other enemies
-                    enemy.x += (dx / dist) * enemy.speed;
-                    enemy.y += (dy / dist) * enemy.speed;
+                    // Basic enemy AI - approach player
+                    // Calculate movement based on player position
+                    const moveSpeed = enemy.speed * (0.5 + Math.sin(Date.now() / 1000) * 0.3) * speedMultiplier;
+                    
+                    // Enemy pathfinding
+                    if (Math.random() < 0.01) {
+                        // Occasional randomness to movement
+                        enemy.randomDir = {
+                            x: Math.random() * 2 - 1,
+                            y: Math.random() * 2 - 1
+                        };
+                    }
+                    
+                    // Blend direct path to player with some randomness
+                    const randomFactor = 0.2;
+                    enemy.x += ((dx / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.x : 0) * randomFactor) * enemy.speed * speedMultiplier;
+                    enemy.y += ((dy / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.y : 0) * randomFactor) * enemy.speed * speedMultiplier;
+                    
+                    // Create movement trail
+                    if (Math.random() < 0.05) {
+                        gameState.particles.push(createParticle(
+                            enemy.x, enemy.y,
+                            enemy.color || 'red',
+                            1, 
+                            enemy.size * 0.3,
+                            20
+                        ));
+                    }
                 }
 
                 // Reduce particle generation probability for better performance
                 if (Math.random() < 0.05) {
                     gameState.particles.push(createParticle(
                         enemy.x, enemy.y,
-                        COLORS.ENEMY[enemy.type].GLOW,
-                        1, 3, 20,
-                        true
+                        enemy.color || 'red',
+                        1, 
+                        enemy.size * 0.3,
+                        20
                     ));
                 }
 
@@ -1177,18 +1178,17 @@
 
         function updatePowerUps() {
             // Spawn power-ups
-            if (Math.random() < 0.001) {
-                const powerUpType = Math.random() < 0.5 ? 'shield' : 'multiShot';
+            if (Math.random() < CONSTANTS.POWER_UPS.SPAWN_CHANCE) {  // Use the constant instead of hardcoded value
+                // Expanded list of power-up types with equal probability
+                const powerUpTypes = ['shield', 'multiShot', 'speedBoost', 'rapidFire', 'healthRestore', 'timeWarp'];
+                const powerUpType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
                 
-                // Verify that the type's color exists in COLORS.POWER_UPS before adding
-                if (COLORS.POWER_UPS[powerUpType.toUpperCase()]) {
-                    gameState.powerUps.push({
-                        x: Math.random() * (canvas.width - 40) + 20,
-                        y: Math.random() * (canvas.height - 40) + 20,
-                        type: powerUpType,
-                        duration: 300
-                    });
-                }
+                gameState.powerUps.push({
+                    x: Math.random() * (canvas.width - 40) + 20,
+                    y: Math.random() * (canvas.height - 40) + 20,
+                    type: powerUpType,
+                    duration: 300
+                });
             }
 
             // Update existing power-ups
@@ -1202,15 +1202,71 @@
                     const dist = Math.sqrt(dx * dx + dy * dy);
 
                     if (dist < CONSTANTS.PLAYER.BASE_SIZE + 20) {
-                        if (powerUp.type === 'shield') {
-                            gameState.player.shield = 100;
-                        } else if (powerUp.type === 'multiShot') {
-                            gameState.player.multiShot = true;
-                            setTimeout(() => {
-                                gameState.player.multiShot = false;
-                            }, 5000);
+                        // Handle different power-up effects
+                        switch(powerUp.type) {
+                            case 'shield':
+                                gameState.player.shield = 100;
+                                break;
+                            case 'multiShot':
+                                gameState.player.multiShot = true;
+                                setTimeout(() => {
+                                    gameState.player.multiShot = false;
+                                }, 5000);
+                                break;
+                            case 'speedBoost':
+                                // Store original speed and apply boost
+                                const originalSpeed = gameState.player.speed;
+                                gameState.player.speed *= 1.5;
+                                setTimeout(() => {
+                                    gameState.player.speed = originalSpeed;
+                                }, 7000);
+                                break;
+                            case 'rapidFire':
+                                gameState.player.rapidFire = true;
+                                setTimeout(() => {
+                                    gameState.player.rapidFire = false;
+                                }, 6000);
+                                break;
+                            case 'healthRestore':
+                                // Fix the health restore power-up by ensuring it actually adds health
+                                const healAmount = gameState.player.maxHealth * 0.3;
+                                gameState.player.health = Math.min(
+                                    gameState.player.maxHealth,
+                                    gameState.player.health + healAmount
+                                );
+                                // Add visual confirmation of healing
+                                for (let i = 0; i < 20; i++) {
+                                    gameState.particles.push(createParticle(
+                                        gameState.player.x, gameState.player.y,
+                                        COLORS.POWER_UPS.HEALTH_RESTORE,
+                                        3, 5, 30,
+                                        true
+                                    ));
+                                }
+                                // Add a temporary health restored indicator
+                                gameState.healthRestoredTime = 120; // Show for 2 seconds (60 frames per second)
+                                break;
+                            case 'timeWarp':
+                                // Apply time warp effect to slow down enemies
+                                gameState.timeWarpActive = true;
+                                setTimeout(() => {
+                                    gameState.timeWarpActive = false;
+                                }, 5000);
+                                break;
                         }
-                        createExplosion(powerUp.x, powerUp.y, COLORS.POWER_UPS[powerUp.type.toUpperCase()]);
+                        
+                        // Create visual explosion effect for power-up collection
+                        let colorKey;
+                        switch(powerUp.type) {
+                            case 'shield': colorKey = 'SHIELD'; break;
+                            case 'multiShot': colorKey = 'MULTI_SHOT'; break;
+                            case 'speedBoost': colorKey = 'SPEED_BOOST'; break;
+                            case 'rapidFire': colorKey = 'RAPID_FIRE'; break;
+                            case 'healthRestore': colorKey = 'HEALTH_RESTORE'; break;
+                            case 'timeWarp': colorKey = 'TIME_WARP'; break;
+                            default: colorKey = 'SHIELD'; // Fallback color
+                        }
+                        createExplosion(powerUp.x, powerUp.y, COLORS.POWER_UPS[colorKey]);
                         return false;
                     }
                     return true;
@@ -1328,6 +1384,18 @@
                 };
                 upgradeOptions.appendChild(button);
             });
+            
+            // Add "No Upgrades" button
+            const noUpgradeButton = document.createElement('button');
+            noUpgradeButton.className = 'upgrade-button';
+            noUpgradeButton.style.background = 'linear-gradient(45deg, #4a1a1a, #6a2a2a)';
+            noUpgradeButton.style.borderColor = 'rgba(247, 88, 88, 0.5)';
+            noUpgradeButton.textContent = 'No Upgrades';
+            noUpgradeButton.onclick = () => {
+                closeUpgradeMenu();
+                startNextWave();
+            };
+            upgradeOptions.appendChild(noUpgradeButton);
             
             // Show menu
             upgradeMenu.style.display = 'block';
@@ -1622,14 +1690,39 @@
 
         function drawPowerUps() {
             gameState.powerUps.forEach(powerUp => {
-                drawGlow(powerUp.x, powerUp.y, 30, 
-                        COLORS.POWER_UPS[powerUp.type.toUpperCase()].replace(')', ', 0.3)'));
+                // Create a mapping between power-up types and color keys
+                let colorKey;
+                switch(powerUp.type) {
+                    case 'shield': colorKey = 'SHIELD'; break;
+                    case 'multiShot': colorKey = 'MULTI_SHOT'; break;
+                    case 'speedBoost': colorKey = 'SPEED_BOOST'; break;
+                    case 'rapidFire': colorKey = 'RAPID_FIRE'; break;
+                    case 'healthRestore': colorKey = 'HEALTH_RESTORE'; break;
+                    case 'timeWarp': colorKey = 'TIME_WARP'; break;
+                    default: colorKey = 'SHIELD'; // Fallback color
+                }
                 
+                // Larger glow effect for better visibility
+                drawGlow(powerUp.x, powerUp.y, 40, 
+                        COLORS.POWER_UPS[colorKey].replace(')', ', 0.5)'));
+                
+                // Larger power-up size
+                const powerUpSize = 20;
                 ctx.beginPath();
-                ctx.arc(powerUp.x, powerUp.y, 15, 0, Math.PI * 2);
-                ctx.fillStyle = COLORS.POWER_UPS[powerUp.type.toUpperCase()];
+                ctx.arc(powerUp.x, powerUp.y, powerUpSize, 0, Math.PI * 2);
+                ctx.fillStyle = COLORS.POWER_UPS[colorKey];
                 ctx.fill();
+                
+                // Brighter outline
                 ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // Add pulsing animation for better visibility
+                const pulseSize = powerUpSize * (1 + 0.2 * Math.sin(Date.now() / 200));
+                ctx.beginPath();
+                ctx.arc(powerUp.x, powerUp.y, pulseSize, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.lineWidth = 2;
                 ctx.stroke();
             });
@@ -1767,6 +1860,27 @@
             drawBar(10, 10, healthWidth, healthHeight, 
                    gameState.player.health / gameState.player.maxHealth,
                    'rgba(255, 50, 50, 0.8)', 'rgba(255, 0, 0, 0.3)');
+                   
+            // Show health restored indicator
+            if (gameState.healthRestoredTime > 0) {
+                // Fade out towards the end
+                const alpha = Math.min(1, gameState.healthRestoredTime / 60);
+                ctx.fillStyle = `rgba(255, 105, 180, ${alpha})`;
+                ctx.font = '18px "Segoe UI"';
+                
+                // Add animation - float upward and fade
+                const yOffset = (120 - gameState.healthRestoredTime) * 0.3;
+                ctx.fillText(`+${Math.round(gameState.player.maxHealth * 0.3)} Health!`, 215, 25 - yOffset);
+                
+                // Add glow effect around health bar when healing
+                if (gameState.healthRestoredTime > 90) {
+                    ctx.beginPath();
+                    ctx.rect(9, 9, healthWidth + 2, healthHeight + 2);
+                    ctx.strokeStyle = `rgba(255, 105, 180, ${alpha})`;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+            }
 
             // Energy bar
             drawBar(10, 40, healthWidth, healthHeight,
@@ -1779,6 +1893,68 @@
             ctx.fillText(`Score: ${gameState.player.score}`, 10, 80);
             ctx.fillText(`Wave: ${gameState.currentWave}/${gameState.wavesTotal}`, 10, 110);
             ctx.fillText(`Enemies: ${gameState.enemiesDefeated}/${gameState.enemiesPerWave}`, 10, 140);
+            
+            // Debug info - show number of active power-ups
+            ctx.fillText(`Active Power-ups: ${gameState.powerUps.length}`, 10, 170);
+            
+            // Active Power-ups Display
+            let powerUpY = 200; // Moved down to make room for debug text
+            const iconSize = 30;
+            
+            // Shield
+            if (gameState.player.shield > 0) {
+                ctx.fillStyle = COLORS.POWER_UPS.SHIELD;
+                ctx.beginPath();
+                ctx.arc(25, powerUpY, iconSize/2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.fillText('Shield', 50, powerUpY + 7);
+                powerUpY += 40;
+            }
+            
+            // Multi-shot
+            if (gameState.player.multiShot) {
+                ctx.fillStyle = COLORS.POWER_UPS.MULTI_SHOT;
+                ctx.beginPath();
+                ctx.arc(25, powerUpY, iconSize/2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.fillText('Multi-shot', 50, powerUpY + 7);
+                powerUpY += 40;
+            }
+            
+            // Rapid Fire
+            if (gameState.player.rapidFire) {
+                ctx.fillStyle = COLORS.POWER_UPS.RAPID_FIRE;
+                ctx.beginPath();
+                ctx.arc(25, powerUpY, iconSize/2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.fillText('Rapid Fire', 50, powerUpY + 7);
+                powerUpY += 40;
+            }
+            
+            // Speed Boost
+            if (gameState.player.speed > CONSTANTS.PLAYER.BASE_SPEED * 1.2) {
+                ctx.fillStyle = COLORS.POWER_UPS.SPEED_BOOST;
+                ctx.beginPath();
+                ctx.arc(25, powerUpY, iconSize/2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.fillText('Speed Boost', 50, powerUpY + 7);
+                powerUpY += 40;
+            }
+            
+            // Time Warp
+            if (gameState.timeWarpActive) {
+                ctx.fillStyle = COLORS.POWER_UPS.TIME_WARP;
+                ctx.beginPath();
+                ctx.arc(25, powerUpY, iconSize/2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.fillText('Time Warp', 50, powerUpY + 7);
+                powerUpY += 40;
+            }
         }
 
         function drawBar(x, y, width, height, fillPercent, fillColor, backgroundColor) {
