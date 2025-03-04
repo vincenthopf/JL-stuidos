@@ -173,7 +173,18 @@
             POWER_UPS: {
                 SIZE: 20,
                 SPAWN_CHANCE: 0.003,  // Reduced from 0.01 to 0.003 for less frequent spawns
-                DURATION: 300
+                DURATION: 300,
+                MAX_COUNT: 5  // Maximum number of power-ups allowed at once
+            },
+            OBSTACLES: {
+                SIZE: 200,  // Length of the wall
+                THICKNESS: 20,  // Thickness of the wall
+                SPAWN_CHANCE: 0.003,
+                TYPES: ['WALL', 'CRYSTAL_WALL', 'BARRIER_WALL'],
+                DAMAGE: 0,
+                MAX_COUNT: 10,  // Maximum number of walls allowed at once
+                LIFETIME: 1800,  // 30 seconds at 60fps
+                RESPAWN_DELAY: 60  // 1 second delay before respawning
             }
         };
 
@@ -195,6 +206,20 @@
                 SPEED_BOOST: '#FFFF00', 
                 HEALTH_RESTORE: '#FF69B4',
                 TIME_WARP: '#9932CC'
+            },
+            OBSTACLES: {
+                WALL: {
+                    CORE: '#808080',
+                    GLOW: '#404040'
+                },
+                CRYSTAL_WALL: {
+                    CORE: '#00FFFF',
+                    GLOW: '#008B8B'
+                },
+                BARRIER_WALL: {
+                    CORE: '#FF4500',
+                    GLOW: '#8B0000'
+                }
             },
             ENEMY: {
                 NORMAL: {
@@ -251,6 +276,7 @@
             },
             enemies: [],
             powerUps: [],
+            obstacles: [],
             currentWave: 1,
             wavesTotal: 10,
             enemiesPerWave: 10,
@@ -488,6 +514,7 @@
                 updateEnemies();
                 updateParticles();
                 updatePowerUps();
+                updateObstacles();
                 checkWaveComplete();
             }
         }
@@ -1178,7 +1205,7 @@
 
         function updatePowerUps() {
             // Spawn power-ups
-            if (Math.random() < CONSTANTS.POWER_UPS.SPAWN_CHANCE) {  // Use the constant instead of hardcoded value
+            if (Math.random() < CONSTANTS.POWER_UPS.SPAWN_CHANCE && gameState.powerUps.length < CONSTANTS.POWER_UPS.MAX_COUNT) {
                 // Expanded list of power-up types with equal probability
                 const powerUpTypes = ['shield', 'multiShot', 'speedBoost', 'rapidFire', 'healthRestore', 'timeWarp'];
                 const powerUpType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
@@ -1450,6 +1477,7 @@
                 },
                 enemies: [],
                 powerUps: [],
+                obstacles: [],
                 currentWave: 1,
                 wavesTotal: 10,
                 enemiesPerWave: 10,
@@ -1569,6 +1597,162 @@
             }
         }
 
+        function updateObstacles() {
+            // Update existing obstacles
+            gameState.obstacles = gameState.obstacles.filter(obstacle => {
+                obstacle.lifetime--;
+                if (obstacle.lifetime <= 0) {
+                    // Create fade out effect
+                    createExplosion(obstacle.x, obstacle.y, COLORS.OBSTACLES[obstacle.type].CORE);
+                    return false;
+                }
+                return true;
+            });
+
+            // Spawn new obstacles if below max count
+            if (gameState.obstacles.length < CONSTANTS.OBSTACLES.MAX_COUNT) {
+                if (Math.random() < CONSTANTS.OBSTACLES.SPAWN_CHANCE) {
+                    const obstacleType = CONSTANTS.OBSTACLES.TYPES[Math.floor(Math.random() * CONSTANTS.OBSTACLES.TYPES.length)];
+                    // Randomly choose between horizontal and vertical orientation
+                    const isHorizontal = Math.random() < 0.5;
+                    gameState.obstacles.push({
+                        x: Math.random() * (canvas.width - (isHorizontal ? CONSTANTS.OBSTACLES.SIZE : CONSTANTS.OBSTACLES.THICKNESS)) + (isHorizontal ? CONSTANTS.OBSTACLES.SIZE/2 : CONSTANTS.OBSTACLES.THICKNESS/2),
+                        y: Math.random() * (canvas.height - (isHorizontal ? CONSTANTS.OBSTACLES.THICKNESS : CONSTANTS.OBSTACLES.SIZE)) + (isHorizontal ? CONSTANTS.OBSTACLES.THICKNESS/2 : CONSTANTS.OBSTACLES.SIZE/2),
+                        type: obstacleType,
+                        isHorizontal: isHorizontal,
+                        rotation: isHorizontal ? 0 : Math.PI/2,
+                        lifetime: CONSTANTS.OBSTACLES.LIFETIME
+                    });
+                }
+            }
+
+            // Check for collisions with player and enemies
+            gameState.obstacles.forEach(obstacle => {
+                // Check player collision
+                const playerDx = gameState.player.x - obstacle.x;
+                const playerDy = gameState.player.y - obstacle.y;
+                const playerDist = Math.sqrt(playerDx * playerDx + playerDy * playerDy);
+
+                if (checkWallCollision(gameState.player, obstacle, CONSTANTS.PLAYER.BASE_SIZE)) {
+                    // Push player away from the wall
+                    const angle = Math.atan2(playerDy, playerDx);
+                    const pushDistance = CONSTANTS.PLAYER.BASE_SIZE + (obstacle.isHorizontal ? CONSTANTS.OBSTACLES.THICKNESS/2 : CONSTANTS.OBSTACLES.SIZE/2) - playerDist;
+                    gameState.player.x += Math.cos(angle) * pushDistance;
+                    gameState.player.y += Math.sin(angle) * pushDistance;
+                }
+
+                // Check enemy collisions
+                gameState.enemies.forEach(enemy => {
+                    if (checkWallCollision(enemy, obstacle, enemy.size)) {
+                        // Push enemy away from the wall
+                        const enemyDx = enemy.x - obstacle.x;
+                        const enemyDy = enemy.y - obstacle.y;
+                        const enemyDist = Math.sqrt(enemyDx * enemyDx + enemyDy * enemyDy);
+                        const angle = Math.atan2(enemyDy, enemyDx);
+                        const pushDistance = enemy.size + (obstacle.isHorizontal ? CONSTANTS.OBSTACLES.THICKNESS/2 : CONSTANTS.OBSTACLES.SIZE/2) - enemyDist;
+                        enemy.x += Math.cos(angle) * pushDistance;
+                        enemy.y += Math.sin(angle) * pushDistance;
+                    }
+                });
+            });
+        }
+
+        // Helper function to check wall collision
+        function checkWallCollision(entity, wall, entitySize) {
+            const dx = entity.x - wall.x;
+            const dy = entity.y - wall.y;
+            
+            if (wall.isHorizontal) {
+                // Check horizontal wall collision
+                return Math.abs(dy) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                       Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2;
+            } else {
+                // Check vertical wall collision
+                return Math.abs(dx) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                       Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2;
+            }
+        }
+
+        function drawObstacles() {
+            gameState.obstacles.forEach(obstacle => {
+                // Calculate fade out effect
+                const fadeOut = obstacle.lifetime / CONSTANTS.OBSTACLES.LIFETIME;
+                
+                // Draw glow effect with fade
+                drawGlow(obstacle.x, obstacle.y, 
+                        obstacle.isHorizontal ? CONSTANTS.OBSTACLES.SIZE/2 : CONSTANTS.OBSTACLES.THICKNESS/2,
+                        COLORS.OBSTACLES[obstacle.type].GLOW.replace(')', `, ${0.3 * fadeOut})`));
+
+                // Draw obstacle
+                ctx.save();
+                ctx.translate(obstacle.x, obstacle.y);
+                ctx.rotate(obstacle.rotation);
+                ctx.globalAlpha = fadeOut;
+
+                switch(obstacle.type) {
+                    case 'WALL':
+                        // Draw solid wall with pattern
+                        ctx.beginPath();
+                        ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
+                                CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
+                        ctx.fillStyle = COLORS.OBSTACLES.WALL.CORE;
+                        ctx.fill();
+                        // Add wall pattern
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.lineWidth = 2;
+                        for (let i = -CONSTANTS.OBSTACLES.SIZE/2; i <= CONSTANTS.OBSTACLES.SIZE/2; i += 20) {
+                            ctx.beginPath();
+                            ctx.moveTo(i, -CONSTANTS.OBSTACLES.THICKNESS/2);
+                            ctx.lineTo(i, CONSTANTS.OBSTACLES.THICKNESS/2);
+                            ctx.stroke();
+                        }
+                        break;
+
+                    case 'CRYSTAL_WALL':
+                        // Draw crystal wall with facets
+                        ctx.beginPath();
+                        ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
+                                CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
+                        ctx.fillStyle = COLORS.OBSTACLES.CRYSTAL_WALL.CORE;
+                        ctx.fill();
+                        // Add crystal facets
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                        ctx.lineWidth = 2;
+                        for (let i = 0; i < 8; i++) {
+                            const angle = (i / 8) * Math.PI * 2;
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.lineTo(
+                                Math.cos(angle) * CONSTANTS.OBSTACLES.SIZE/2,
+                                Math.sin(angle) * CONSTANTS.OBSTACLES.THICKNESS/2
+                            );
+                            ctx.stroke();
+                        }
+                        break;
+
+                    case 'BARRIER_WALL':
+                        // Draw barrier wall with warning stripes
+                        ctx.beginPath();
+                        ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
+                                CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
+                        ctx.fillStyle = COLORS.OBSTACLES.BARRIER_WALL.CORE;
+                        ctx.fill();
+                        // Add warning stripes
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                        ctx.lineWidth = 4;
+                        for (let i = -CONSTANTS.OBSTACLES.SIZE/2; i <= CONSTANTS.OBSTACLES.SIZE/2; i += 30) {
+                            ctx.beginPath();
+                            ctx.moveTo(i, -CONSTANTS.OBSTACLES.THICKNESS/2);
+                            ctx.lineTo(i, CONSTANTS.OBSTACLES.THICKNESS/2);
+                            ctx.stroke();
+                        }
+                        break;
+                }
+
+                ctx.restore();
+            });
+        }
+
         // Drawing functions
         function draw() {
             // Clear canvas with a complete black fill instead of partial transparency 
@@ -1582,6 +1766,7 @@
             // Draw game elements
             drawParticles();
             drawShockwaves();
+            drawObstacles();
             drawPowerUps();
             drawEnemies();
             drawBullets();
