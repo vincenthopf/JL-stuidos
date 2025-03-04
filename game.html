@@ -1214,11 +1214,14 @@
                                 }, 5000);
                                 break;
                             case 'speedBoost':
-                                // Store original speed and apply boost
-                                const originalSpeed = gameState.player.speed;
+                                // Reset to base speed first to prevent stacking
+                                gameState.player.speed = CONSTANTS.PLAYER.BASE_SPEED;
+                                // Apply new boost
                                 gameState.player.speed *= 1.5;
+                                gameState.player.speedBoostActive = true;
                                 setTimeout(() => {
-                                    gameState.player.speed = originalSpeed;
+                                    gameState.player.speed = CONSTANTS.PLAYER.BASE_SPEED;
+                                    gameState.player.speedBoostActive = false;
                                 }, 7000);
                                 break;
                             case 'rapidFire':
@@ -1851,7 +1854,7 @@
                     }
                 });
             }
-        }
+            }
 
         function drawUI() {
             // Health bar
@@ -1935,13 +1938,13 @@
             }
             
             // Speed Boost
-            if (gameState.player.speed > CONSTANTS.PLAYER.BASE_SPEED * 1.2) {
+            if (gameState.player.speedBoostActive) {
                 ctx.fillStyle = COLORS.POWER_UPS.SPEED_BOOST;
                 ctx.beginPath();
                 ctx.arc(25, powerUpY, iconSize/2, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.fillStyle = 'white';
-                ctx.fillText('Speed Boost', 50, powerUpY + 7);
+                ctx.fillText('Speed Boost', 50, powerUpY +7);
                 powerUpY += 40;
             }
             
