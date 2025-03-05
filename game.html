@@ -637,16 +637,51 @@
         }
 
         function updateBullets() {
-            // Limit maximum number of bullets
-            if (gameState.player.bullets.length > 50) {
-                gameState.player.bullets = gameState.player.bullets.slice(-50);
-            }
-            
+            // Update player bullets
             gameState.player.bullets = gameState.player.bullets.filter(bullet => {
+                // Update position
                 bullet.x += bullet.dx;
                 bullet.y += bullet.dy;
                 bullet.lifetime--;
 
+                // Check for wall collisions
+                for (let wall of gameState.obstacles) {
+                    const dx = bullet.x - wall.x;
+                    const dy = bullet.y - wall.y;
+                    
+                    if (wall.isHorizontal) {
+                        // Check horizontal wall collision
+                        if (Math.abs(dy) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            // Create wall hit effect
+                            for (let i = 0; i < 5; i++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    COLORS.BULLET.GLOW,
+                                    1, 2, 10,
+                                    true
+                                ));
+                            }
+                            return false; // Remove bullet
+                        }
+                    } else {
+                        // Check vertical wall collision
+                        if (Math.abs(dx) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            // Create wall hit effect
+                            for (let i = 0; i < 5; i++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    COLORS.BULLET.GLOW,
+                                    1, 2, 10,
+                                    true
+                                ));
+                            }
+                            return false; // Remove bullet
+                        }
+                    }
+                }
+                
                 // Reduce particle generation probability for better performance
                 if (Math.random() < 0.1) {
                     gameState.particles.push(createParticle(
@@ -665,6 +700,271 @@
 
                 return bullet.lifetime > 0;
             });
+
+            // Update enemy bullets
+            gameState.enemyBullets = gameState.enemyBullets.filter(bullet => {
+                // Update position
+                bullet.x += bullet.dx;
+                bullet.y += bullet.dy;
+                bullet.lifetime--;
+
+                // Check for wall collisions
+                for (let wall of gameState.obstacles) {
+                    const dx = bullet.x - wall.x;
+                    const dy = bullet.y - wall.y;
+                    
+                    if (wall.isHorizontal) {
+                        // Check horizontal wall collision
+                        if (Math.abs(dy) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            // Create wall hit effect
+                            for (let i = 0; i < 5; i++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    bullet.fromElite ? COLORS.ENEMY.ELITE.GLOW : 
+                                    bullet.fromShooter ? COLORS.ENEMY.SHOOTER.GLOW : 
+                                    COLORS.ENEMY.NORMAL.GLOW,
+                                    1, 2, 10,
+                                    true
+                                ));
+                            }
+                            return false; // Remove bullet
+                        }
+                    } else {
+                        // Check vertical wall collision
+                        if (Math.abs(dx) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            // Create wall hit effect
+                            for (let i = 0; i < 5; i++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    bullet.fromElite ? COLORS.ENEMY.ELITE.GLOW : 
+                                    bullet.fromShooter ? COLORS.ENEMY.SHOOTER.GLOW : 
+                                    COLORS.ENEMY.NORMAL.GLOW,
+                                    1, 2, 10,
+                                    true
+                                ));
+                            }
+                            return false; // Remove bullet
+                        }
+                    }
+                }
+
+                // Remove bullets that go off-screen
+                if (bullet.x < 0 || bullet.x > canvas.width || 
+                    bullet.y < 0 || bullet.y > canvas.height) {
+                    return false;
+                }
+
+                return bullet.lifetime > 0;
+            });
+        }
+
+        // Helper function to check wall collision
+        function checkWallCollision(entity, wall, entitySize) {
+            const dx = entity.x - wall.x;
+            const dy = entity.y - wall.y;
+            const buffer = 2; // Add a small buffer to prevent getting too close to walls
+            
+            if (wall.isHorizontal) {
+                // Check horizontal wall collision with buffer
+                return Math.abs(dy) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 + buffer &&
+                       Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2 + buffer;
+            } else {
+                // Check vertical wall collision with buffer
+                return Math.abs(dx) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 + buffer &&
+                       Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2 + buffer;
+            }
+        }
+
+        // Helper function to check if a position is blocked by walls
+        function isPositionBlocked(x, y, entitySize) {
+            return gameState.obstacles.some(wall => {
+                const dx = x - wall.x;
+                const dy = y - wall.y;
+                const buffer = 2; // Add a small buffer to prevent getting too close to walls
+                
+                if (wall.isHorizontal) {
+                    return Math.abs(dy) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 + buffer &&
+                           Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2 + buffer;
+                } else {
+                    return Math.abs(dx) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 + buffer &&
+                           Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2 + buffer;
+                }
+            });
+        }
+
+        // Helper function to check if there's a wall between two points
+        function hasWallBetween(x1, y1, x2, y2, entitySize) {
+            const steps = 10; // Number of points to check along the path
+            for (let i = 0; i <= steps; i++) {
+                const x = x1 + (x2 - x1) * (i / steps);
+                const y = y1 + (y2 - y1) * (i / steps);
+                if (isPositionBlocked(x, y, entitySize)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Helper function to find a safe movement direction
+        function findSafeDirection(enemy, targetX, targetY, speed) {
+            const entitySize = enemy.size;
+            const directions = [
+                { dx: 1, dy: 0 },   // right
+                { dx: -1, dy: 0 },  // left
+                { dx: 0, dy: 1 },   // down
+                { dx: 0, dy: -1 },  // up
+                { dx: 1, dy: 1 },   // diagonal right-down
+                { dx: -1, dy: 1 },  // diagonal left-down
+                { dx: 1, dy: -1 },  // diagonal right-up
+                { dx: -1, dy: -1 }  // diagonal left-up
+            ];
+
+            // Initialize stuck detection if not present
+            enemy.lastPosition = enemy.lastPosition || { x: enemy.x, y: enemy.y };
+            enemy.stuckTime = enemy.stuckTime || 0;
+            enemy.lastDirection = enemy.lastDirection || null;
+            enemy.escapeAttempts = enemy.escapeAttempts || 0;
+            enemy.wallAvoidance = enemy.wallAvoidance || { x: 0, y: 0 };
+
+            // Check if enemy is stuck
+            const dx = enemy.x - enemy.lastPosition.x;
+            const dy = enemy.y - enemy.lastPosition.y;
+            const movement = Math.sqrt(dx * dx + dy * dy);
+            
+            if (movement < 0.1) {
+                enemy.stuckTime++;
+                enemy.escapeAttempts++;
+            } else {
+                enemy.stuckTime = 0;
+                enemy.escapeAttempts = 0;
+            }
+
+            // Check if there's a wall between enemy and target
+            const hasWall = hasWallBetween(enemy.x, enemy.y, targetX, targetY, entitySize);
+            
+            if (hasWall) {
+                // Calculate perpendicular direction to wall
+                const angleToTarget = Math.atan2(targetY - enemy.y, targetX - enemy.x);
+                const perpendicularAngle = angleToTarget + Math.PI/2;
+                
+                // Try both perpendicular directions
+                const perpendicularDirs = [
+                    { dx: Math.cos(perpendicularAngle), dy: Math.sin(perpendicularAngle) },
+                    { dx: Math.cos(perpendicularAngle + Math.PI), dy: Math.sin(perpendicularAngle + Math.PI) }
+                ];
+
+                // Try moving perpendicular to the wall
+                for (let dir of perpendicularDirs) {
+                    const newX = enemy.x + dir.dx * speed * 2;
+                    const newY = enemy.y + dir.dy * speed * 2;
+                    
+                    if (!isPositionBlocked(newX, newY, entitySize)) {
+                        // Check if this direction gets us closer to target
+                        const currentDist = Math.sqrt(
+                            Math.pow(targetX - enemy.x, 2) + 
+                            Math.pow(targetY - enemy.y, 2)
+                        );
+                        const newDist = Math.sqrt(
+                            Math.pow(targetX - newX, 2) + 
+                            Math.pow(targetY - newY, 2)
+                        );
+                        
+                        if (newDist < currentDist) {
+                            enemy.wallAvoidance = dir;
+                            return dir;
+                        }
+                    }
+                }
+            }
+
+            // If stuck for too long, try to force a new direction
+            if (enemy.stuckTime > 20) {
+                // Try to find any direction that's not blocked
+                for (let dir of directions) {
+                    const newX = enemy.x + dir.dx * speed;
+                    const newY = enemy.y + dir.dy * speed;
+                    if (!isPositionBlocked(newX, newY, entitySize)) {
+                        enemy.stuckTime = 0;
+                        enemy.escapeAttempts = 0;
+                        enemy.lastDirection = dir;
+                        return dir;
+                    }
+                }
+
+                // If still stuck, try moving in the opposite of the last direction
+                if (enemy.lastDirection) {
+                    const oppositeDir = {
+                        dx: -enemy.lastDirection.dx,
+                        dy: -enemy.lastDirection.dy
+                    };
+                    const newX = enemy.x + oppositeDir.dx * speed;
+                    const newY = enemy.y + oppositeDir.dy * speed;
+                    if (!isPositionBlocked(newX, newY, entitySize)) {
+                        enemy.stuckTime = 0;
+                        enemy.escapeAttempts = 0;
+                        enemy.lastDirection = oppositeDir;
+                        return oppositeDir;
+                    }
+                }
+
+                // If still stuck after multiple attempts, try to teleport to a safe position
+                if (enemy.escapeAttempts > 5) {
+                    let safeX = enemy.x;
+                    let safeY = enemy.y;
+                    let attempts = 0;
+                    const maxAttempts = 10;
+                    
+                    while (attempts < maxAttempts) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = 100 + Math.random() * 100;
+                        safeX = enemy.x + Math.cos(angle) * distance;
+                        safeY = enemy.y + Math.sin(angle) * distance;
+                        
+                        if (!isPositionBlocked(safeX, safeY, entitySize)) {
+                            enemy.x = safeX;
+                            enemy.y = safeY;
+                            enemy.stuckTime = 0;
+                            enemy.escapeAttempts = 0;
+                            return null;
+                        }
+                        attempts++;
+                    }
+                }
+            }
+
+            // Try each direction and find the one that gets us closest to target without hitting walls
+            let bestDirection = null;
+            let bestDistance = Infinity;
+
+            // Try multiple distances to find the best path
+            const distances = [1, 1.5, 2];
+            for (let dist of distances) {
+                directions.forEach(dir => {
+                    const newX = enemy.x + dir.dx * speed * dist;
+                    const newY = enemy.y + dir.dy * speed * dist;
+                    
+                    if (!isPositionBlocked(newX, newY, entitySize)) {
+                        const dx = targetX - newX;
+                        const dy = targetY - newY;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < bestDistance) {
+                            bestDistance = dist;
+                            bestDirection = dir;
+                        }
+                    }
+                });
+            }
+
+            // Update last position and direction
+            enemy.lastPosition = { x: enemy.x, y: enemy.y };
+            if (bestDirection) {
+                enemy.lastDirection = bestDirection;
+            }
+
+            return bestDirection;
         }
 
         function updateEnemies() {
@@ -677,7 +977,7 @@
             }
 
             // Apply time warp speed reduction if active
-            const speedMultiplier = gameState.timeWarpActive ? 0.4 : 1.0; // Reduce enemy speed by 60% during time warp
+            const speedMultiplier = gameState.timeWarpActive ? 0.4 : 1.0;
 
             // Update existing enemies
             gameState.enemies = gameState.enemies.filter(enemy => {
@@ -691,32 +991,42 @@
                     enemy.bulletCooldown = enemy.bulletCooldown || 0;
                     enemy.bulletCooldown--;
 
-                    // Shooter tries to maintain distance
-                    if (dist < 400) {  // Increased from 300
-                        // Move away from player if too close
-                        enemy.x -= (dx / dist) * enemy.speed * 0.5 * speedMultiplier;
-                        enemy.y -= (dy / dist) * enemy.speed * 0.5 * speedMultiplier;
-                    } else if (dist > 600) {  // Increased from 400
-                        // Move toward player if too far
-                        enemy.x += (dx / dist) * enemy.speed * 0.5 * speedMultiplier;
-                        enemy.y += (dy / dist) * enemy.speed * 0.5 * speedMultiplier;
+                    // Calculate target position based on distance
+                    let targetX = gameState.player.x;
+                    let targetY = gameState.player.y;
+                    
+                    if (dist < 400) {
+                        // Move away from player
+                        targetX = enemy.x - dx;
+                        targetY = enemy.y - dy;
+                    } else if (dist > 600) {
+                        // Move toward player
+                        targetX = gameState.player.x;
+                        targetY = gameState.player.y;
                     } else {
-                        // Strafe around the player if at good distance
+                        // Strafe around the player
                         const strafeAngle = Math.atan2(dy, dx) + Math.PI / 2;
                         const strafeDirection = Math.sin(Date.now() / 1000) > 0 ? 1 : -1;
-                        enemy.x += Math.cos(strafeAngle) * enemy.speed * 0.3 * strafeDirection * speedMultiplier;
-                        enemy.y += Math.sin(strafeAngle) * enemy.speed * 0.3 * strafeDirection * speedMultiplier;
+                        targetX = enemy.x + Math.cos(strafeAngle) * strafeDirection;
+                        targetY = enemy.y + Math.sin(strafeAngle) * strafeDirection;
+                    }
+
+                    // Find safe direction to move
+                    const safeDir = findSafeDirection(enemy, targetX, targetY, enemy.speed * 0.5 * speedMultiplier);
+                    if (safeDir) {
+                        enemy.x += safeDir.dx * enemy.speed * 0.5 * speedMultiplier;
+                        enemy.y += safeDir.dy * enemy.speed * 0.5 * speedMultiplier;
                     }
 
                     // Shoot at player when at good distance and cooldown is ready
-                    if (dist >= 400 && dist <= 600 && enemy.bulletCooldown <= 0) {  // Increased range
+                    if (dist >= 400 && dist <= 600 && enemy.bulletCooldown <= 0) {
                         const shootAngle = Math.atan2(dy, dx);
                         gameState.enemyBullets.push({
                             x: enemy.x,
                             y: enemy.y,
-                            dx: Math.cos(shootAngle) * 6,  // Increased from 4 to 6
-                            dy: Math.sin(shootAngle) * 6,  // Increased from 4 to 6
-                            lifetime: 90  // Increased from 60 to 90 to match the longer range
+                            dx: Math.cos(shootAngle) * 6,
+                            dy: Math.sin(shootAngle) * 6,
+                            lifetime: 90
                         });
                         
                         // Create shooting effect
@@ -730,11 +1040,10 @@
                         }
                         
                         // Reset cooldown
-                        enemy.bulletCooldown = 45; // Shoot every 45 frames (0.75 seconds)
+                        enemy.bulletCooldown = 45;
                     }
                 } else if (enemy.type === 'BOMBER') {
                     // Bomber approaches and explodes
-                    // Update charge timer
                     enemy.chargeTimer--;
                     
                     if (enemy.chargeTimer <= 0) {
@@ -743,71 +1052,59 @@
                             x: gameState.player.x + (Math.random() - 0.5) * 200,
                             y: gameState.player.y + (Math.random() - 0.5) * 200
                         };
-                        enemy.charging = true;
-                        enemy.chargeTimer = 30; // Time to charge
+                        enemy.chargeTimer = 60;
                     }
+
+                    // Find safe direction to move
+                    const targetX = enemy.chargeTarget ? enemy.chargeTarget.x : gameState.player.x;
+                    const targetY = enemy.chargeTarget ? enemy.chargeTarget.y : gameState.player.y;
+                    const safeDir = findSafeDirection(enemy, targetX, targetY, enemy.speed * speedMultiplier);
                     
-                    if (enemy.charging) {
-                        // Move toward charge target
-                        const chargeDx = enemy.chargeTarget.x - enemy.x;
-                        const chargeDy = enemy.chargeTarget.y - enemy.y;
-                        const chargeDist = Math.sqrt(chargeDx * chargeDx + chargeDy * chargeDy);
-                        
-                        if (chargeDist > 10) {
-                            enemy.x += (chargeDx / chargeDist) * enemy.speed * 2.5 * speedMultiplier;
-                            enemy.y += (chargeDy / chargeDist) * enemy.speed * 2.5 * speedMultiplier;
-                        } else {
-                            // Set up for next charge
-                            enemy.charging = false;
-                            enemy.chargeTimer = 60; // Cooldown before next charge
-                        }
-                    } else {
-                        // Circle around the player when not charging
-                        enemy.angle = (enemy.angle || 0) + 0.02 * speedMultiplier;
-                        const orbitDistance = 300;
-                        const targetX = gameState.player.x + Math.cos(enemy.angle) * orbitDistance;
-                        const targetY = gameState.player.y + Math.sin(enemy.angle) * orbitDistance;
-                        
-                        const orbitDx = targetX - enemy.x;
-                        const orbitDy = targetY - enemy.y;
-                        const orbitDist = Math.sqrt(orbitDx * orbitDx + orbitDy * orbitDy);
-                        
-                        enemy.x += (orbitDx / orbitDist) * enemy.speed * 0.7 * speedMultiplier;
-                        enemy.y += (orbitDy / orbitDist) * enemy.speed * 0.7 * speedMultiplier;
+                    if (safeDir) {
+                        enemy.x += safeDir.dx * enemy.speed * speedMultiplier;
+                        enemy.y += safeDir.dy * enemy.speed * speedMultiplier;
                     }
                 } else if (enemy.type === 'ELITE') {
-                    // Elite enemy - has shields and teleports
-                    
-                    // Initialize elite properties if not set
+                    // Elite enemy behavior
                     enemy.shield = enemy.shield || 50;
                     enemy.teleportCooldown = enemy.teleportCooldown || 180;
                     enemy.attackCooldown = enemy.attackCooldown || 120;
                     
-                    // Update cooldowns
                     enemy.teleportCooldown--;
                     enemy.attackCooldown--;
                     
-                    // Teleport when cooldown reaches zero or when health is low
                     if (enemy.teleportCooldown <= 0 || (enemy.health < enemy.maxHealth * 0.3 && enemy.teleportCooldown <= 60)) {
-                        // Create teleport effect at current position
                         createTeleportEffect(enemy.x, enemy.y);
                         
-                        // Teleport to a new position near the player
-                        const angle = Math.random() * Math.PI * 2;
-                        const distance = 200 + Math.random() * 200;
-                        enemy.x = gameState.player.x + Math.cos(angle) * distance;
-                        enemy.y = gameState.player.y + Math.sin(angle) * distance;
+                        // Find a safe position to teleport to
+                        let newX, newY;
+                        let attempts = 0;
+                        do {
+                            const angle = Math.random() * Math.PI * 2;
+                            const distance = 200 + Math.random() * 200;
+                            newX = gameState.player.x + Math.cos(angle) * distance;
+                            newY = gameState.player.y + Math.sin(angle) * distance;
+                            attempts++;
+                        } while (isPositionBlocked(newX, newY, enemy.size) && attempts < 10);
                         
-                        // Create teleport effect at new position
-                        createTeleportEffect(enemy.x, enemy.y);
+                        if (!isPositionBlocked(newX, newY, enemy.size)) {
+                            enemy.x = newX;
+                            enemy.y = newY;
+                            createTeleportEffect(enemy.x, enemy.y);
+                        }
                         
-                        // Reset teleport cooldown
                         enemy.teleportCooldown = 180;
                     }
                     
-                    // Special attack - shoot multiple bullets in a pattern
+                    // Find safe direction to move
+                    const safeDir = findSafeDirection(enemy, gameState.player.x, gameState.player.y, enemy.speed * speedMultiplier);
+                    if (safeDir) {
+                        enemy.x += safeDir.dx * enemy.speed * speedMultiplier;
+                        enemy.y += safeDir.dy * enemy.speed * speedMultiplier;
+                    }
+                    
+                    // Attack logic
                     if (enemy.attackCooldown <= 0 && dist < 500) {
-                        // Spiral attack
                         const bulletCount = 8;
                         for (let i = 0; i < bulletCount; i++) {
                             const spreadAngle = Math.atan2(dy, dx) + (Math.PI * 2 * i / bulletCount);
@@ -822,7 +1119,6 @@
                             });
                         }
                         
-                        // Create attack effect
                         for (let i = 0; i < 10; i++) {
                             gameState.particles.push(createParticle(
                                 enemy.x, enemy.y,
@@ -832,65 +1128,15 @@
                             ));
                         }
                         
-                        // Reset attack cooldown
                         enemy.attackCooldown = 120;
                     }
-                    
-                    // Move toward player at variable speed
-                    const moveSpeed = enemy.speed * (0.5 + Math.sin(Date.now() / 1000) * 0.3) * speedMultiplier;
-                    
-                    // Enemy pathfinding
-                    if (Math.random() < 0.01) {
-                        // Occasional randomness to movement
-                        enemy.randomDir = {
-                            x: Math.random() * 2 - 1,
-                            y: Math.random() * 2 - 1
-                        };
-                    }
-                    
-                    // Blend direct path to player with some randomness
-                    const randomFactor = 0.2;
-                    enemy.x += ((dx / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.x : 0) * randomFactor) * enemy.speed * speedMultiplier;
-                    enemy.y += ((dy / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.y : 0) * randomFactor) * enemy.speed * speedMultiplier;
-                    
-                    // Create movement trail
-                    if (Math.random() < 0.05) {
-                        gameState.particles.push(createParticle(
-                            enemy.x, enemy.y,
-                            enemy.color || 'red',
-                            1, 
-                            enemy.size * 0.3,
-                            20
-                        ));
-                    }
                 } else {
-                    // Basic enemy AI - approach player
-                    // Calculate movement based on player position
-                    const moveSpeed = enemy.speed * (0.5 + Math.sin(Date.now() / 1000) * 0.3) * speedMultiplier;
-                    
-                    // Enemy pathfinding
-                    if (Math.random() < 0.01) {
-                        // Occasional randomness to movement
-                        enemy.randomDir = {
-                            x: Math.random() * 2 - 1,
-                            y: Math.random() * 2 - 1
-                        };
-                    }
-                    
-                    // Blend direct path to player with some randomness
-                    const randomFactor = 0.2;
-                    enemy.x += ((dx / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.x : 0) * randomFactor) * enemy.speed * speedMultiplier;
-                    enemy.y += ((dy / dist) * (1 - randomFactor) + (enemy.randomDir ? enemy.randomDir.y : 0) * randomFactor) * enemy.speed * speedMultiplier;
-                    
-                    // Create movement trail
-                    if (Math.random() < 0.05) {
-                        gameState.particles.push(createParticle(
-                            enemy.x, enemy.y,
-                            enemy.color || 'red',
-                            1, 
-                            enemy.size * 0.3,
-                            20
-                        ));
+                    // Default enemy behavior (NORMAL, FAST, TANK)
+                    // Find safe direction to move
+                    const safeDir = findSafeDirection(enemy, gameState.player.x, gameState.player.y, enemy.speed * speedMultiplier);
+                    if (safeDir) {
+                        enemy.x += safeDir.dx * enemy.speed * speedMultiplier;
+                        enemy.y += safeDir.dy * enemy.speed * speedMultiplier;
                     }
                 }
 
@@ -908,48 +1154,6 @@
                 // Check collisions
                 return !checkEnemyCollisions(enemy, dist);
             });
-            
-            // Update enemy bullets if they exist
-            if (gameState.enemyBullets) {
-                gameState.enemyBullets = gameState.enemyBullets.filter(bullet => {
-                    bullet.x += bullet.dx;
-                    bullet.y += bullet.dy;
-                    bullet.lifetime--;
-                    
-                    // Check collision with player
-                    const dx = gameState.player.x - bullet.x;
-                    const dy = gameState.player.y - bullet.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (dist < CONSTANTS.PLAYER.BASE_SIZE) {
-                        // If shield is active, reduce shield instead of health
-                        if (gameState.player.shield > 0) {
-                            gameState.player.shield -= 20;
-                            if (gameState.player.shield < 0) gameState.player.shield = 0;
-                        } else {
-                            gameState.player.health -= 5;
-                            
-                            // Check for game over
-                            if (gameState.player.health <= 0) {
-                                gameState.gameOver = true;
-                            }
-                        }
-                        
-                        // Create hit effect
-                        createExplosion(bullet.x, bullet.y, '#FFA500');
-                        return false;
-                    }
-                    
-                    // Remove if off-screen or expired
-                    if (bullet.x < 0 || bullet.x > canvas.width || 
-                        bullet.y < 0 || bullet.y > canvas.height || 
-                        bullet.lifetime <= 0) {
-                        return false;
-                    }
-                    
-                    return true;
-                });
-            }
         }
 
         function spawnEnemy() {
@@ -1684,22 +1888,6 @@
                     }
                 });
             });
-        }
-
-        // Helper function to check wall collision
-        function checkWallCollision(entity, wall, entitySize) {
-            const dx = entity.x - wall.x;
-            const dy = entity.y - wall.y;
-            
-            if (wall.isHorizontal) {
-                // Check horizontal wall collision
-                return Math.abs(dy) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                       Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2;
-            } else {
-                // Check vertical wall collision
-                return Math.abs(dx) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                       Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2;
-            }
         }
 
         function drawObstacles() {
