@@ -687,12 +687,16 @@
 
                 // Movement behavior based on enemy type
                 if (enemy.type === 'SHOOTER') {
+                    // Initialize shooter properties if not set
+                    enemy.bulletCooldown = enemy.bulletCooldown || 0;
+                    enemy.bulletCooldown--;
+
                     // Shooter tries to maintain distance
-                    if (dist < 300) {
+                    if (dist < 400) {  // Increased from 300
                         // Move away from player if too close
                         enemy.x -= (dx / dist) * enemy.speed * 0.5 * speedMultiplier;
                         enemy.y -= (dy / dist) * enemy.speed * 0.5 * speedMultiplier;
-                    } else if (dist > 400) {
+                    } else if (dist > 600) {  // Increased from 400
                         // Move toward player if too far
                         enemy.x += (dx / dist) * enemy.speed * 0.5 * speedMultiplier;
                         enemy.y += (dy / dist) * enemy.speed * 0.5 * speedMultiplier;
@@ -702,6 +706,31 @@
                         const strafeDirection = Math.sin(Date.now() / 1000) > 0 ? 1 : -1;
                         enemy.x += Math.cos(strafeAngle) * enemy.speed * 0.3 * strafeDirection * speedMultiplier;
                         enemy.y += Math.sin(strafeAngle) * enemy.speed * 0.3 * strafeDirection * speedMultiplier;
+                    }
+
+                    // Shoot at player when at good distance and cooldown is ready
+                    if (dist >= 400 && dist <= 600 && enemy.bulletCooldown <= 0) {  // Increased range
+                        const shootAngle = Math.atan2(dy, dx);
+                        gameState.enemyBullets.push({
+                            x: enemy.x,
+                            y: enemy.y,
+                            dx: Math.cos(shootAngle) * 6,  // Increased from 4 to 6
+                            dy: Math.sin(shootAngle) * 6,  // Increased from 4 to 6
+                            lifetime: 90  // Increased from 60 to 90 to match the longer range
+                        });
+                        
+                        // Create shooting effect
+                        for (let i = 0; i < 5; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.SHOOTER.CORE,
+                                2, 3, 15,
+                                true
+                            ));
+                        }
+                        
+                        // Reset cooldown
+                        enemy.bulletCooldown = 45; // Shoot every 45 frames (0.75 seconds)
                     }
                 } else if (enemy.type === 'BOMBER') {
                     // Bomber approaches and explodes
@@ -1045,7 +1074,7 @@
                     // Teleport away after collision
                     createTeleportEffect(enemy.x, enemy.y);
                     
-                    // Teleport to a random position away from player
+                    // Teleport to a random position close to player
                     const angle = Math.random() * Math.PI * 2;
                     const distance = 300 + Math.random() * 100;
                     enemy.x = gameState.player.x + Math.cos(angle) * distance;
