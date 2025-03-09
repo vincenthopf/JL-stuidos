@@ -172,7 +172,7 @@
             },
             POWER_UPS: {
                 SIZE: 20,
-                SPAWN_CHANCE: 0.003,  // Reduced from 0.01 to 0.003 for less frequent spawns
+                SPAWN_CHANCE: 0.01,  // Increased from 0.003 to 0.01 for more frequent power-up spawns
                 DURATION: 300,
                 MAX_COUNT: 5  // Maximum number of power-ups allowed at once
             },
@@ -297,7 +297,16 @@
             gameStarted: false,
             lastKeyPress: {},
             isBossFight: false,
-            bossDefeated: false
+            bossDefeated: false,
+            // Track power-up durations
+            activePowerUps: {
+                shield: { active: false, remaining: 0, total: 0 },
+                multiShot: { active: false, remaining: 0, total: 5000 },
+                speedBoost: { active: false, remaining: 0, total: 7000 },
+                rapidFire: { active: false, remaining: 0, total: 6000 },
+                timeWarp: { active: false, remaining: 0, total: 5000 }
+            },
+            floatingTexts: [] // Array to store floating text objects
         };
 
         // Secret code sequence tracking
@@ -523,6 +532,7 @@
             updatePowerUps();
             updateObstacles();
             updateParticles();
+            updateFloatingTexts(); // Update floating text
             
             // Spawn enemies if not in a boss fight
             if (!gameState.waveComplete && 
@@ -1924,11 +1934,18 @@
                         switch(powerUp.type) {
                             case 'shield':
                                 gameState.player.shield = 100;
+                                gameState.activePowerUps.shield.active = true;
+                                gameState.activePowerUps.shield.remaining = 10000; // Shield lasts until depleted
+                                gameState.activePowerUps.shield.total = 10000;
                                 break;
                             case 'multiShot':
                                 gameState.player.multiShot = true;
+                                gameState.activePowerUps.multiShot.active = true;
+                                gameState.activePowerUps.multiShot.remaining = 5000;
+                                gameState.activePowerUps.multiShot.total = 5000;
                                 setTimeout(() => {
                                     gameState.player.multiShot = false;
+                                    gameState.activePowerUps.multiShot.active = false;
                                 }, 5000);
                                 break;
                             case 'speedBoost':
@@ -1937,15 +1954,23 @@
                                 // Apply new boost
                                 gameState.player.speed *= 1.5;
                                 gameState.player.speedBoostActive = true;
+                                gameState.activePowerUps.speedBoost.active = true;
+                                gameState.activePowerUps.speedBoost.remaining = 7000;
+                                gameState.activePowerUps.speedBoost.total = 7000;
                                 setTimeout(() => {
                                     gameState.player.speed = CONSTANTS.PLAYER.BASE_SPEED;
                                     gameState.player.speedBoostActive = false;
+                                    gameState.activePowerUps.speedBoost.active = false;
                                 }, 7000);
                                 break;
                             case 'rapidFire':
                                 gameState.player.rapidFire = true;
+                                gameState.activePowerUps.rapidFire.active = true;
+                                gameState.activePowerUps.rapidFire.remaining = 6000;
+                                gameState.activePowerUps.rapidFire.total = 6000;
                                 setTimeout(() => {
                                     gameState.player.rapidFire = false;
+                                    gameState.activePowerUps.rapidFire.active = false;
                                 }, 6000);
                                 break;
                             case 'healthRestore':
@@ -1966,12 +1991,19 @@
                                 }
                                 // Add a temporary health restored indicator
                                 gameState.healthRestoredTime = 120; // Show for 2 seconds (60 frames per second)
+                                
+                                // Add floating text to show amount healed
+                                addFloatingText(`+${Math.round(healAmount)} HP`, gameState.player.x, gameState.player.y - 30, COLORS.POWER_UPS.HEALTH_RESTORE, 40);
                                 break;
                             case 'timeWarp':
                                 // Apply time warp effect to slow down enemies
                                 gameState.timeWarpActive = true;
+                                gameState.activePowerUps.timeWarp.active = true;
+                                gameState.activePowerUps.timeWarp.remaining = 5000;
+                                gameState.activePowerUps.timeWarp.total = 5000;
                                 setTimeout(() => {
                                     gameState.timeWarpActive = false;
+                                    gameState.activePowerUps.timeWarp.active = false;
                                 }, 5000);
                                 break;
                         }
@@ -1997,6 +2029,19 @@
                     return false;
                 }
             });
+            
+            // Update remaining duration for active power-ups
+            for (const type in gameState.activePowerUps) {
+                if (gameState.activePowerUps[type].active) {
+                    gameState.activePowerUps[type].remaining = Math.max(0, gameState.activePowerUps[type].remaining - (1000/60)); // Decrease by ms per frame
+                    
+                    // Handle shield separately since it's based on shield value
+                    if (type === 'shield') {
+                        gameState.activePowerUps.shield.active = gameState.player.shield > 0;
+                        gameState.activePowerUps.shield.remaining = gameState.player.shield * 100; // Scale to display
+                    }
+                }
+            }
         }
 
         function dash() {
@@ -2628,6 +2673,7 @@
             drawEnemyBullets(); // Add this line
             drawPlayer();
             drawParticles();
+            drawFloatingTexts(); // Draw floating text
             drawUI();
         }
 
@@ -2946,15 +2992,15 @@
 
         function drawUI() {
             const margin = 20;
-            const barWidth = 250;  // Increased width
-            const barHeight = 12;  // Slightly reduced height for sleeker look
+            const barWidth = 200;  // Reduced width for more compact UI
+            const barHeight = 10;  // Slightly reduced height for sleeker look
             const cornerRadius = 8;
-            const spacing = 12;
-            const panelPadding = 15;
+            const spacing = 10;    // Reduced spacing for more compact UI
+            const panelPadding = 12; // Reduced padding
             
             // Main UI Panel with gradient background
             const panelWidth = barWidth + margin * 2;
-            const panelHeight = 200;
+            const panelHeight = 180; // Reduced panel height for more compact UI
             const gradient = ctx.createLinearGradient(0, 0, 0, panelHeight);
             gradient.addColorStop(0, 'rgba(20, 20, 40, 0.85)');
             gradient.addColorStop(1, 'rgba(10, 10, 30, 0.85)');
@@ -2975,37 +3021,47 @@
             ctx.beginPath();
             ctx.roundRect(margin/2, margin/2, panelWidth, panelHeight, cornerRadius);
             ctx.stroke();
-
-            // Health bar with pulsing effect when low
-            const healthPercent = gameState.player.health / gameState.player.maxHealth;
-            const pulseIntensity = healthPercent < 0.3 ? Math.abs(Math.sin(Date.now() / 200)) * 0.5 : 0;
             
+            // Health bar with dynamic glow based on health percentage
+            const healthPercent = gameState.player.health / gameState.player.maxHealth;
+            const healthGlow = Math.max(0, 0.5 - (1 - healthPercent) * 0.5);
+            const healthY = margin + panelPadding + 5; // Adjusted Y position
+            
+            ctx.save();
+            ctx.shadowColor = `rgba(255, ${healthPercent * 255}, ${healthPercent * 255}, ${healthGlow})`;
+            ctx.shadowBlur = 10;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.font = '14px "Segoe UI"';
-            ctx.fillText('HEALTH', margin + panelPadding, margin + panelPadding + 4);
+            ctx.font = '13px "Segoe UI"';
+            ctx.fillText('HEALTH', margin + panelPadding, healthY + 4);
+            ctx.restore();
             
             // Health percentage
             ctx.textAlign = 'right';
-            ctx.fillText(`${Math.round(healthPercent * 100)}%`, margin + panelWidth - panelPadding, margin + panelPadding + 4);
+            ctx.fillText(`${Math.round(healthPercent * 100)}%`, margin + panelWidth - panelPadding, healthY + 4);
             ctx.textAlign = 'left';
             
-            drawBar(margin + panelPadding, margin + panelPadding + 10, barWidth - panelPadding * 2, barHeight, 
-                   healthPercent,
-                   `rgba(255, ${50 + pulseIntensity * 205}, ${50 + pulseIntensity * 205}, 0.9)`, 
-                   `rgba(255, 0, 0, ${0.4 + pulseIntensity * 0.6})`,
-                   true);
-            // Show health restored indicator with fade effect
-            if (gameState.healthRestoredTime > 0) {
-                const alpha = Math.min(1, gameState.healthRestoredTime / 60);
-                ctx.fillStyle = `rgba(255, 236, 179, ${alpha})`;
-                ctx.font = '14px "Segoe UI"';
-                const yOffset = (120 - gameState.healthRestoredTime) * 0.3;
-                ctx.fillText(`+${Math.round(gameState.player.maxHealth * 0.3)} HP`, margin + barWidth - 60, margin + panelPadding + 30 - yOffset);
+            // Change color based on health percentage
+            let healthBarColor, healthBarBgColor;
+            if (healthPercent > 0.6) {
+                healthBarColor = 'rgba(100, 255, 100, 0.9)';
+                healthBarBgColor = 'rgba(0, 200, 0, 0.4)';
+            } else if (healthPercent > 0.3) {
+                healthBarColor = 'rgba(255, 255, 100, 0.9)';
+                healthBarBgColor = 'rgba(200, 200, 0, 0.4)';
+            } else {
+                healthBarColor = 'rgba(255, 100, 100, 0.9)';
+                healthBarBgColor = 'rgba(200, 0, 0, 0.4)';
             }
-
+            
+            drawBar(margin + panelPadding, healthY + 10, barWidth - panelPadding * 2, barHeight, 
+                   healthPercent, 
+                   healthBarColor, 
+                   healthBarBgColor, 
+                   true);
+            
             // Energy bar with dynamic glow
             const energyPercent = gameState.player.energy / gameState.player.maxEnergy;
-            const energyY = margin + barHeight + spacing + panelPadding + 25;
+            const energyY = healthY + barHeight + spacing + 12; // Adjusted Y position
             
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.fillText('ENERGY', margin + panelPadding, energyY + 4);
@@ -3020,53 +3076,86 @@
                    'rgba(50, 150, 255, 0.9)', 
                    'rgba(0, 100, 255, 0.4)',
                    true);
-
-            // Stats section with modern icons and layout
-            const statsY = energyY + barHeight + spacing + 25;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.font = '15px "Segoe UI"';
             
-            // Score with animated star
+            // Stats section with modern icons and more compact layout
+            const statsY = energyY + barHeight + spacing + 15; // Adjusted Y position
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.font = '13px "Segoe UI"';
+            
+            // Two-column layout for stats
+            const colWidth = (barWidth - panelPadding * 2) / 2;
+            
+            // Score with animated star - Column 1
             const starPulse = Math.sin(Date.now() / 300) * 0.1 + 0.9;
-            ctx.font = `${16 * starPulse}px "Segoe UI"`;
+            ctx.font = `${14 * starPulse}px "Segoe UI"`;
             ctx.fillStyle = 'rgba(255, 215, 0, 0.9)';
             ctx.fillText('⭐', margin + panelPadding, statsY);
-            ctx.font = '15px "Segoe UI"';
+            ctx.font = '13px "Segoe UI"';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.fillText(`${gameState.player.score}`, margin + panelPadding + 25, statsY);
+            ctx.fillText(`${gameState.player.score}`, margin + panelPadding + 20, statsY);
             
-            // Wave info with wave animation
+            // Wave info with wave animation - Column 2
             const waveOffset = Math.sin(Date.now() / 500) * 2;
             ctx.fillStyle = 'rgba(100, 200, 255, 0.9)';
-            ctx.fillText('🌊', margin + panelPadding + waveOffset, statsY + spacing + 20);
+            ctx.fillText('🌊', margin + panelPadding + colWidth, statsY + waveOffset);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.fillText(`Wave ${gameState.currentWave}/${gameState.wavesTotal}`, margin + panelPadding + 25, statsY + spacing + 20);
+            ctx.fillText(`${gameState.currentWave}/${gameState.wavesTotal}`, margin + panelPadding + colWidth + 20, statsY);
             
-            // Enemy count with target animation
+            // Enemy count with target animation - Column 1
             const targetPulse = Math.sin(Date.now() / 400) * 0.1 + 0.9;
-            ctx.font = `${16 * targetPulse}px "Segoe UI"`;
+            ctx.font = `${14 * targetPulse}px "Segoe UI"`;
             ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
-            ctx.fillText('🎯', margin + panelPadding, statsY + spacing * 2 + 20);
-            ctx.font = '15px "Segoe UI"';
+            ctx.fillText('🎯', margin + panelPadding, statsY + spacing + 18);
+            ctx.font = '13px "Segoe UI"';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.fillText(`${gameState.enemiesDefeated}/${gameState.enemiesPerWave}`, margin + panelPadding + 25, statsY + spacing * 2 + 20);
+            ctx.fillText(`${gameState.enemiesDefeated}/${gameState.enemiesPerWave}`, margin + panelPadding + 20, statsY + spacing + 18);
             
             // Active Power-ups Display
-            let powerUpY = 240;
-            const iconSize = 28;
-            const labelOffset = 38;
+            let powerUpY = 220; // Adjusted Y position
+            const iconSize = 24; // Slightly smaller icons
+            const labelOffset = 32; // Adjusted for smaller icons
             
             const activePowerUps = [
-                gameState.player.shield > 0 && { name: 'Shield', color: COLORS.POWER_UPS.SHIELD, icon: '🛡️' },
-                gameState.player.multiShot && { name: 'Multi-shot', color: COLORS.POWER_UPS.MULTI_SHOT, icon: '🎯' },
-                gameState.player.rapidFire && { name: 'Rapid Fire', color: COLORS.POWER_UPS.RAPID_FIRE, icon: '⚡' },
-                gameState.player.speedBoostActive && { name: 'Speed Boost', color: COLORS.POWER_UPS.SPEED_BOOST, icon: '💨' },
-                gameState.timeWarpActive && { name: 'Time Warp', color: COLORS.POWER_UPS.TIME_WARP, icon: '⌛' }
+                gameState.activePowerUps.shield.active && { 
+                    name: 'Shield', 
+                    color: COLORS.POWER_UPS.SHIELD, 
+                    icon: '🛡️',
+                    remaining: gameState.activePowerUps.shield.remaining,
+                    total: gameState.activePowerUps.shield.total
+                },
+                gameState.activePowerUps.multiShot.active && { 
+                    name: 'Multi-shot', 
+                    color: COLORS.POWER_UPS.MULTI_SHOT, 
+                    icon: '🎯',
+                    remaining: gameState.activePowerUps.multiShot.remaining,
+                    total: gameState.activePowerUps.multiShot.total
+                },
+                gameState.activePowerUps.rapidFire.active && { 
+                    name: 'Rapid Fire', 
+                    color: COLORS.POWER_UPS.RAPID_FIRE, 
+                    icon: '⚡',
+                    remaining: gameState.activePowerUps.rapidFire.remaining,
+                    total: gameState.activePowerUps.rapidFire.total
+                },
+                gameState.activePowerUps.speedBoost.active && { 
+                    name: 'Speed Boost', 
+                    color: COLORS.POWER_UPS.SPEED_BOOST, 
+                    icon: '💨',
+                    remaining: gameState.activePowerUps.speedBoost.remaining,
+                    total: gameState.activePowerUps.speedBoost.total
+                },
+                gameState.activePowerUps.timeWarp.active && { 
+                    name: 'Time Warp', 
+                    color: COLORS.POWER_UPS.TIME_WARP, 
+                    icon: '⌛',
+                    remaining: gameState.activePowerUps.timeWarp.remaining,
+                    total: gameState.activePowerUps.timeWarp.total
+                }
             ].filter(Boolean);
             
             if (activePowerUps.length > 0) {
                 // Power-ups panel with gradient
-                const powerUpPanelHeight = activePowerUps.length * 40 + 40;
+                const powerUpPanelHeight = activePowerUps.length * 35 + 40; // Reduced height per power-up
                 const powerUpGradient = ctx.createLinearGradient(0, powerUpY - 15, 0, powerUpY + powerUpPanelHeight);
                 powerUpGradient.addColorStop(0, 'rgba(20, 20, 40, 0.85)');
                 powerUpGradient.addColorStop(1, 'rgba(10, 10, 30, 0.85)');
@@ -3092,13 +3181,13 @@
                 ctx.shadowColor = 'rgba(88, 161, 247, 0.5)';
                 ctx.shadowBlur = 10;
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                ctx.font = '14px "Segoe UI"';
+                ctx.font = '13px "Segoe UI"';
                 ctx.fillText('ACTIVE POWER-UPS', margin + panelPadding, powerUpY);
                 ctx.restore();
                 
-                // Draw each active power-up with animation
+                // Draw each active power-up with animation and duration bar
                 activePowerUps.forEach((powerUp, index) => {
-                    const y = powerUpY + 30 + index * 40;
+                    const y = powerUpY + 25 + index * 35; // Reduced spacing between items
                     const iconPulse = Math.sin(Date.now() / 400 + index) * 0.1 + 0.9;
                     
                     // Power-up icon background
@@ -3114,19 +3203,34 @@
                     ctx.fill();
                     
                     // Power-up icon
-                    ctx.font = `${20 * iconPulse}px "Segoe UI"`;
+                    ctx.font = `${18 * iconPulse}px "Segoe UI"`;
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                     ctx.textAlign = 'center';
-                    ctx.fillText(powerUp.icon, margin + panelPadding + iconSize/2, y + 7);
+                    ctx.fillText(powerUp.icon, margin + panelPadding + iconSize/2, y + 6);
                     ctx.textAlign = 'left';
                     
                     // Power-up name with subtle glow
                     ctx.save();
                     ctx.shadowColor = powerUp.color;
                     ctx.shadowBlur = 5;
-                    ctx.font = '14px "Segoe UI"';
+                    ctx.font = '13px "Segoe UI"';
                     ctx.fillText(powerUp.name, margin + panelPadding + labelOffset, y + 5);
                     ctx.restore();
+                    
+                    // Power-up duration bar
+                    const durationPercent = powerUp.remaining / powerUp.total;
+                    const durationBarWidth = 120; // Width of the duration bar
+                    const durationBarHeight = 6; // Height of the duration bar
+                    const durationBarX = margin + panelPadding + labelOffset;
+                    const durationBarY = y + 10;
+                    
+                    // Get color with reduced opacity
+                    const barColor = powerUp.color.replace(')', ', 0.9)').replace('rgb', 'rgba');
+                    const bgColor = powerUp.color.replace(')', ', 0.4)').replace('rgb', 'rgba');
+                    
+                    // Draw the duration bar
+                    drawBar(durationBarX, durationBarY, durationBarWidth, durationBarHeight, 
+                           durationPercent, barColor, bgColor, true);
                 });
             }
         }
@@ -3284,6 +3388,7 @@
                 drawEnemyBullets();
                 drawPlayer();
                 drawParticles();
+                drawFloatingTexts(); // Draw floating text
                 drawUI();
                 
                 // Draw game state messages
@@ -3490,6 +3595,42 @@
                     star.y = 0;
                     star.x = Math.random() * canvas.width;
                 }
+            });
+        }
+
+        // Function to add floating text (for damage numbers, healing, etc.)
+        function addFloatingText(text, x, y, color, lifetime = 60, size = 20) {
+            gameState.floatingTexts.push({
+                text,
+                x,
+                y,
+                color,
+                lifetime,
+                maxLifetime: lifetime,
+                size,
+                velocityY: -1.5  // Float upward
+            });
+        }
+        
+        // Function to update and draw floating text
+        function updateFloatingTexts() {
+            gameState.floatingTexts = gameState.floatingTexts.filter(text => {
+                text.y += text.velocityY;
+                text.lifetime--;
+                return text.lifetime > 0;
+            });
+        }
+        
+        function drawFloatingTexts() {
+            gameState.floatingTexts.forEach(text => {
+                const alpha = text.lifetime / text.maxLifetime;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.font = `${text.size}px "Segoe UI"`;
+                ctx.fillStyle = text.color;
+                ctx.textAlign = 'center';
+                ctx.fillText(text.text, text.x, text.y);
+                ctx.restore();
             });
         }
     </script>
