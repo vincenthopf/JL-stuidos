@@ -209,16 +209,16 @@
             },
             OBSTACLES: {
                 WALL: {
-                    CORE: '#808080',
-                    GLOW: '#404040'
+                    CORE: '#4A4A4A',  // Darker grey for walls
+                    GLOW: '#2D2D2D'   // Even darker grey for glow
                 },
                 CRYSTAL_WALL: {
-                    CORE: '#00FFFF',
-                    GLOW: '#008B8B'
+                    CORE: '#616161',  // Medium grey for crystal walls
+                    GLOW: '#3D3D3D'   // Darker grey for glow
                 },
                 BARRIER_WALL: {
-                    CORE: '#FF4500',
-                    GLOW: '#8B0000'
+                    CORE: '#7D7D7D',  // Lighter grey for barrier walls
+                    GLOW: '#4D4D4D'   // Medium grey for glow
                 }
             },
             ENEMY: {
@@ -668,6 +668,44 @@
                     return false;
                 }
                 
+                // Check collision with walls/obstacles
+                for (let obstacle of gameState.obstacles) {
+                    const dx = bullet.x - obstacle.x;
+                    const dy = bullet.y - obstacle.y;
+                    
+                    if (obstacle.isHorizontal) {
+                        // Check horizontal wall collision with precise boundaries
+                        if (Math.abs(dy) < CONSTANTS.BULLET.SIZE/2 + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            // Create particle effect when bullet hits wall
+                            for (let i = 0; i < 5; i++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    '#FFFFFF', // White spark
+                                    1, 2, 10,
+                                    true
+                                ));
+                            }
+                            return false; // Remove bullet
+                        }
+                    } else {
+                        // Check vertical wall collision with precise boundaries
+                        if (Math.abs(dx) < CONSTANTS.BULLET.SIZE/2 + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            // Create particle effect when bullet hits wall
+                            for (let i = 0; i < 5; i++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    '#FFFFFF', // White spark
+                                    1, 2, 10,
+                                    true
+                                ));
+                            }
+                            return false; // Remove bullet
+                        }
+                    }
+                }
+                
                 // Check collision with enemies
                 let hitEnemy = false;
                 
@@ -733,8 +771,13 @@
                                 gameState.isBossFight = false;
                                 gameState.bossDefeated = true;
                                 
+                                // Explicitly call checkWaveComplete to trigger wave transition
+                                checkWaveComplete();
+                                
                                 // Remove the boss
                                 gameState.enemies = gameState.enemies.filter(e => e !== enemy);
+                                
+                                return false;
                             }
                         }
                     }
@@ -1226,6 +1269,12 @@
                         gameState.isBossFight = false;
                         gameState.bossDefeated = true;
                         
+                        // Explicitly call checkWaveComplete to trigger wave transition
+                        checkWaveComplete();
+                        
+                        // Remove the boss
+                        gameState.enemies = gameState.enemies.filter(e => e !== enemy);
+                        
                         return false;
                     }
                     
@@ -1274,38 +1323,83 @@
                     // Bomber approaches and explodes
                     enemy.chargeTimer = enemy.chargeTimer || 60;
                     enemy.chargeTimer--;
+                    enemy.isCharging = enemy.isCharging || false;
                     
-                    if (enemy.chargeTimer <= 0) {
-                        // Begin charge - pick target point near player
-                        enemy.chargeTarget = {
-                            x: gameState.player.x + (Math.random() - 0.5) * 200,
-                            y: gameState.player.y + (Math.random() - 0.5) * 200
-                        };
-                        enemy.chargeTimer = 60;
+                    if (enemy.chargeTimer <= 0 && !enemy.isCharging) {
+                        // Begin charge - now directly targets the player
+                        enemy.isCharging = true;
+                        enemy.chargeTime = 45; // Duration of charge
+                        enemy.chargeSpeed = enemy.speed * 2.5; // Faster during charge
                     }
 
-                    // Move towards target
-                    const targetX = enemy.chargeTarget ? enemy.chargeTarget.x : gameState.player.x;
-                    const targetY = enemy.chargeTarget ? enemy.chargeTarget.y : gameState.player.y;
-                    const targetDx = targetX - enemy.x;
-                    const targetDy = targetY - enemy.y;
-                    const targetDist = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
-                    
-                    if (targetDist > 0) {
-                        enemy.x += targetDx / targetDist * enemy.speed * speedMultiplier;
-                        enemy.y += targetDy / targetDist * enemy.speed * speedMultiplier;
+                    if (enemy.isCharging) {
+                        // During charge, track player with mid-air direction changes
+                        enemy.chargeTime--;
+                        
+                        // Update target to player's current position (tracking)
+                        // Every 10 frames, recalculate trajectory to home in on player
+                        if (enemy.chargeTime % 10 === 0) {
+                            enemy.chargeTarget = {
+                                x: gameState.player.x,
+                                y: gameState.player.y
+                            };
+                        }
+                        
+                        // Calculate direction to updated target
+                        const targetX = enemy.chargeTarget ? enemy.chargeTarget.x : gameState.player.x;
+                        const targetY = enemy.chargeTarget ? enemy.chargeTarget.y : gameState.player.y;
+                        const targetDx = targetX - enemy.x;
+                        const targetDy = targetY - enemy.y;
+                        const targetDist = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
+                        
+                        // Move faster during charge with tracking
+                        if (targetDist > 0) {
+                            enemy.x += targetDx / targetDist * enemy.chargeSpeed * speedMultiplier;
+                            enemy.y += targetDy / targetDist * enemy.chargeSpeed * speedMultiplier;
+                            
+                            // Add trailing particles for visual effect
+                            if (Math.random() < 0.4) {
+                                gameState.particles.push(createParticle(
+                                    enemy.x, enemy.y,
+                                    COLORS.ENEMY.BOMBER.CORE,
+                                    3, 3, 20,
+                                    true
+                                ));
+                            }
+                        }
+                        
+                        // End charge and reset
+                        if (enemy.chargeTime <= 0) {
+                            enemy.isCharging = false;
+                            enemy.chargeTimer = 90; // Longer cooldown between charges
+                        }
+                    } else {
+                        // Normal movement when not charging
+                        const dx = gameState.player.x - enemy.x;
+                        const dy = gameState.player.y - enemy.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Move towards player at normal speed when not charging
+                        if (dist > 0) {
+                            enemy.x += dx / dist * enemy.speed * speedMultiplier * 0.7; // Slower approach
+                            enemy.y += dy / dist * enemy.speed * speedMultiplier * 0.7;
+                        }
                     }
                 } else if (enemy.type === 'ELITE') {
                     // Elite enemy behavior
                     enemy.shield = enemy.shield || 50;
                     enemy.teleportCooldown = enemy.teleportCooldown || 180;
                     enemy.attackCooldown = enemy.attackCooldown || 120;
+                    enemy.justTeleported = enemy.justTeleported || false;
                     
                     enemy.teleportCooldown--;
-                    enemy.attackCooldown--;
+                    if (!enemy.justTeleported) {
+                        enemy.attackCooldown--;
+                    }
                     
                     if (enemy.teleportCooldown <= 0 || (enemy.health < enemy.maxHealth * 0.3 && enemy.teleportCooldown <= 60)) {
-                        // Teleport effect placeholder
+                        // Teleport effect for departure
+                        createTeleportEffect(enemy.x, enemy.y);
                         
                         // Find a safe position to teleport to
                         const angle = Math.random() * Math.PI * 2;
@@ -1313,15 +1407,23 @@
                         enemy.x = gameState.player.x + Math.cos(angle) * distance;
                         enemy.y = gameState.player.y + Math.sin(angle) * distance;
                         
-                        enemy.teleportCooldown = 180;
+                        // Teleport effect for arrival
+                        createTeleportEffect(enemy.x, enemy.y);
+                        
+                        // Flag to trigger immediate attack after teleport
+                        enemy.justTeleported = true;
+                        
+                        // Reset teleport cooldown (reduced from 180 to make them teleport more frequently)
+                        enemy.teleportCooldown = 150;
                     }
                     
                     // Move towards player
                     enemy.x += dx / dist * enemy.speed * speedMultiplier * 0.5;
                     enemy.y += dy / dist * enemy.speed * speedMultiplier * 0.5;
                     
-                    // Attack logic
-                    if (enemy.attackCooldown <= 0 && dist < 500) {
+                    // Attack logic - now shoots immediately after teleporting and shoots more frequently
+                    if ((enemy.attackCooldown <= 0 || enemy.justTeleported) && dist < 600) {
+                        // Immediate attack after teleport or regular attack cooldown
                         const bulletCount = 8;
                         for (let i = 0; i < bulletCount; i++) {
                             const spreadAngle = Math.atan2(dy, dx) + (Math.PI * 2 * i / bulletCount);
@@ -1329,14 +1431,28 @@
                             gameState.enemyBullets.push({
                                 x: enemy.x,
                                 y: enemy.y,
-                                dx: Math.cos(spreadAngle) * 4,
-                                dy: Math.sin(spreadAngle) * 4,
+                                dx: Math.cos(spreadAngle) * 4.5, // Slightly faster bullets
+                                dy: Math.sin(spreadAngle) * 4.5,
                                 lifetime: 60,
                                 fromElite: true
                             });
                         }
                         
-                        enemy.attackCooldown = 120;
+                        // Visual effect for the attack
+                        for (let i = 0; i < 12; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.ELITE.CORE,
+                                3, 4, 20,
+                                true
+                            ));
+                        }
+                        
+                        // Reset the teleport attack flag
+                        enemy.justTeleported = false;
+                        
+                        // Faster attack cooldown (reduced from 120)
+                        enemy.attackCooldown = 90;
                     }
                 } else {
                     // Default enemy behavior (NORMAL, FAST, TANK)
@@ -1568,13 +1684,23 @@
                 
                 // Special effect for elite collision
                 if (enemy.type === 'ELITE') {
-                    // Teleport effect placeholder
+                    // Teleport effect for departure
+                    createTeleportEffect(enemy.x, enemy.y);
                     
-                    // Teleport to a random position close to player
+                    // Teleport to a random position further away from player
                     const angle = Math.random() * Math.PI * 2;
                     const distance = 300 + Math.random() * 100;
                     enemy.x = gameState.player.x + Math.cos(angle) * distance;
                     enemy.y = gameState.player.y + Math.sin(angle) * distance;
+                    
+                    // Teleport effect for arrival
+                    createTeleportEffect(enemy.x, enemy.y);
+                    
+                    // Counter-attack after being hit (immediate attack)
+                    enemy.justTeleported = true;
+                    
+                    // Don't reset teleport cooldown as aggressively
+                    enemy.teleportCooldown = Math.max(60, enemy.teleportCooldown);
                     
                     return false; // Don't destroy elite on collision
                 }
@@ -1647,7 +1773,7 @@
                     
                     if (dist < CONSTANTS.BULLET.SIZE + enemy.size) {
                         // Calculate damage based on bullet properties and player level
-                        let damage = 20 * gameState.player.level.damage;
+                        let damage = 40 * gameState.player.level.damage; // Increased from 20 to 40 to two-shot normal enemies
                         
                         // If enemy has a shield, reduce that first
                         if (enemy.shield && enemy.shield > 0) {
@@ -1674,16 +1800,22 @@
                         
                         // Check if enemy is defeated
                         if (enemy.health <= 0) {
-                            // Create explosion effect
-                            let particleCount = enemy.type === 'ELITE' || enemy.type === 'TANK' ? 30 : 15;
-                                      
-                            for (let i = 0; i < particleCount; i++) {
-                                gameState.particles.push(createParticle(
-                                    enemy.x, enemy.y,
-                                    COLORS.ENEMY[enemy.type] ? COLORS.ENEMY[enemy.type].CORE : 'red',
-                                    3, 4, 30,
-                                    true
-                                ));
+                            // Special explosion effect for Bomber enemies when killed
+                            if (enemy.type === 'BOMBER') {
+                                // Call explode function for the bomber
+                                explodeBomber(enemy);
+                            } else {
+                                // Create regular explosion effect for other enemies
+                                let particleCount = enemy.type === 'ELITE' || enemy.type === 'TANK' ? 30 : 15;
+                                          
+                                for (let i = 0; i < particleCount; i++) {
+                                    gameState.particles.push(createParticle(
+                                        enemy.x, enemy.y,
+                                        COLORS.ENEMY[enemy.type] ? COLORS.ENEMY[enemy.type].CORE : 'red',
+                                        3, 4, 30,
+                                        true
+                                    ));
+                                }
                             }
                             
                             // Award score based on enemy type
@@ -1943,6 +2075,12 @@
                             // Boss was defeated, proceed to next wave
                             gameState.isBossFight = false;
                             gameState.bossDefeated = false;
+                            gameState.currentWave++; // Increment wave counter after boss defeat
+                            gameState.enemiesDefeated = 0; // Reset enemy counter for the next wave
+                            
+                            // Reset enemy spawning parameters to ensure enemies will spawn in next wave
+                            gameState.waveComplete = false;
+
                             // Show upgrade menu and pause the game
                             gamePaused = true;
                             showUpgradeMenu();
@@ -1952,6 +2090,23 @@
                             showUpgradeMenu();
                         }
                     }
+                }, 500);
+            } else if (gameState.bossDefeated) {
+                // Special case for boss defeat - handle directly without requiring enemiesDefeated check
+                // Boss was defeated, proceed to next wave
+                gameState.waveComplete = true;
+                
+                // Add a slight delay before showing the menu to prevent UI issues
+                setTimeout(() => {
+                    gameState.isBossFight = false;
+                    gameState.bossDefeated = false;
+                    gameState.currentWave++; // Increment wave counter after boss defeat
+                    gameState.enemiesDefeated = 0; // Reset enemy counter for the next wave
+                    gameState.waveComplete = false; // Reset wave complete flag
+                    
+                    // Show upgrade menu and pause the game
+                    gamePaused = true;
+                    showUpgradeMenu();
                 }, 500);
             }
         }
@@ -2017,7 +2172,12 @@
         }
         
         function startNextWave() {
-            gameState.currentWave++;
+            // Only increment wave if not coming from boss defeat
+            // (since we already incremented in the boss defeat case)
+            if (!gameState.bossDefeated) {
+                gameState.currentWave++;
+            }
+            
             gameState.enemiesDefeated = 0;
             gameState.waveComplete = false;
             
@@ -2100,16 +2260,16 @@
 
         function explodeBomber(bomber) {
             // Create large explosion
-            const explosionRadius = 100;
+            const explosionRadius = 150; // Increased from 100 to 150
             
-            // Visual effect - big explosion
-            for (let i = 0; i < 40; i++) {
+            // Visual effect - bigger explosion
+            for (let i = 0; i < 60; i++) { // Increased from 40 to 60
                 gameState.particles.push(createParticle(
                     bomber.x, bomber.y,
                     COLORS.ENEMY.BOMBER.CORE,
-                    5 + Math.random() * 3,
-                    4 + Math.random() * 4,
-                    50,
+                    5 + Math.random() * 4, // Larger particles
+                    4 + Math.random() * 6, // Larger particles
+                    60, // Longer lifetime
                     true
                 ));
             }
@@ -2122,7 +2282,7 @@
             if (dist < explosionRadius + CONSTANTS.PLAYER.BASE_SIZE) {
                 // Calculate damage based on distance from center (more damage closer to center)
                 const damageFactor = 1 - (dist / (explosionRadius + CONSTANTS.PLAYER.BASE_SIZE));
-                const damage = Math.round(30 * damageFactor);
+                const damage = Math.round(40 * damageFactor); // Increased from 30 to 40
                 
                 // If shield is active, reduce shield instead of health
                 if (gameState.player.shield > 0) {
@@ -2137,12 +2297,36 @@
                     }
                 }
                 
-                // Knockback effect
-                const knockbackForce = 10 * damageFactor;
+                // Knockback effect - stronger
+                const knockbackForce = 15 * damageFactor; // Increased from 10 to 15
                 const knockbackAngle = Math.atan2(dy, dx);
                 gameState.player.x += Math.cos(knockbackAngle) * knockbackForce;
                 gameState.player.y += Math.sin(knockbackAngle) * knockbackForce;
             }
+            
+            // Check if other enemies are caught in explosion and damage them too
+            gameState.enemies.forEach(enemy => {
+                if (enemy !== bomber) { // Don't affect the bomber itself
+                    const enemyDx = enemy.x - bomber.x;
+                    const enemyDy = enemy.y - bomber.y;
+                    const enemyDist = Math.sqrt(enemyDx * enemyDx + enemyDy * enemyDy);
+                    
+                    if (enemyDist < explosionRadius + enemy.size) {
+                        // Calculate damage based on distance
+                        const enemyDamageFactor = 1 - (enemyDist / (explosionRadius + enemy.size));
+                        const enemyDamage = Math.round(30 * enemyDamageFactor);
+                        
+                        // Apply damage to enemy
+                        enemy.health -= enemyDamage;
+                        
+                        // Knockback effect on enemy
+                        const enemyKnockback = 10 * enemyDamageFactor;
+                        const enemyKnockbackAngle = Math.atan2(enemyDy, enemyDx);
+                        enemy.x += Math.cos(enemyKnockbackAngle) * enemyKnockback;
+                        enemy.y += Math.sin(enemyKnockbackAngle) * enemyKnockback;
+                    }
+                }
+            });
             
             // Create shockwave effect
             const shockwave = {
@@ -2150,7 +2334,7 @@
                 y: bomber.y,
                 radius: 10,
                 maxRadius: explosionRadius,
-                lifetime: 20,
+                lifetime: 25, // Increased from 20 to 25
                 color: COLORS.ENEMY.BOMBER.GLOW
             };
             
@@ -2159,23 +2343,36 @@
         }
         
         function createTeleportEffect(x, y) {
-            // Visual effect for teleportation
-            for (let i = 0; i < 20; i++) {
+            // Enhanced visual effect for teleportation
+            for (let i = 0; i < 30; i++) { // Increased from 20 to 30 particles
                 const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * 30;
+                const distance = Math.random() * 40; // Increased from 30 to 40
                 
                 gameState.particles.push({
                     x: x + Math.cos(angle) * distance,
                     y: y + Math.sin(angle) * distance,
-                    dx: Math.cos(angle) * 2,
-                    dy: Math.sin(angle) * 2,
-                    size: 3 + Math.random() * 2,
+                    dx: Math.cos(angle) * 3, // Faster particles
+                    dy: Math.sin(angle) * 3,
+                    size: 3 + Math.random() * 3, // Larger particles
                     color: COLORS.ENEMY.ELITE.CORE,
-                    lifetime: 20,
+                    lifetime: 25, // Longer lifetime
                     alpha: 1,
                     glow: true
                 });
             }
+            
+            // Add a shockwave effect
+            const shockwave = {
+                x: x,
+                y: y,
+                radius: 5,
+                maxRadius: 60,
+                lifetime: 15,
+                color: COLORS.ENEMY.ELITE.GLOW
+            };
+            
+            gameState.shockwaves = gameState.shockwaves || [];
+            gameState.shockwaves.push(shockwave);
         }
 
         function updateObstacles() {
@@ -2319,60 +2516,96 @@
 
                 switch(obstacle.type) {
                     case 'WALL':
-                        // Draw solid wall with pattern
+                        // Draw solid wall with space theme
                         ctx.beginPath();
                         ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
                                 CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
                         ctx.fillStyle = COLORS.OBSTACLES.WALL.CORE;
                         ctx.fill();
-                        // Add wall pattern
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                        ctx.lineWidth = 2;
-                        for (let i = -CONSTANTS.OBSTACLES.SIZE/2; i <= CONSTANTS.OBSTACLES.SIZE/2; i += 20) {
+                        
+                        // Add cosmic dust pattern
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                        for (let i = 0; i < 15; i++) {
+                            const starX = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.SIZE;
+                            const starY = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.THICKNESS;
+                            const starSize = Math.random() * 1.5 + 0.5;
                             ctx.beginPath();
-                            ctx.moveTo(i, -CONSTANTS.OBSTACLES.THICKNESS/2);
-                            ctx.lineTo(i, CONSTANTS.OBSTACLES.THICKNESS/2);
+                            ctx.arc(starX, starY, starSize, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        
+                        // Add subtle meteor lines
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                        ctx.lineWidth = 1;
+                        for (let i = 0; i < 3; i++) {
+                            const lineX = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.SIZE;
+                            const lineLength = Math.random() * 30 + 10;
+                            ctx.beginPath();
+                            ctx.moveTo(lineX, -CONSTANTS.OBSTACLES.THICKNESS/2);
+                            ctx.lineTo(lineX, CONSTANTS.OBSTACLES.THICKNESS/2);
                             ctx.stroke();
                         }
                         break;
 
                     case 'CRYSTAL_WALL':
-                        // Draw crystal wall with facets
+                        // Draw crystal wall with space theme
                         ctx.beginPath();
                         ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
                                 CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
                         ctx.fillStyle = COLORS.OBSTACLES.CRYSTAL_WALL.CORE;
                         ctx.fill();
-                        // Add crystal facets
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.lineWidth = 2;
-                        for (let i = 0; i < 8; i++) {
-                            const angle = (i / 8) * Math.PI * 2;
+                        
+                        // Add nebula-like pattern
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.lineWidth = 1;
+                        for (let i = 0; i < 5; i++) {
+                            const angle = (i / 5) * Math.PI;
                             ctx.beginPath();
-                            ctx.moveTo(0, 0);
-                            ctx.lineTo(
-                                Math.cos(angle) * CONSTANTS.OBSTACLES.SIZE/2,
-                                Math.sin(angle) * CONSTANTS.OBSTACLES.THICKNESS/2
-                            );
+                            ctx.ellipse(0, 0, 
+                                Math.random() * CONSTANTS.OBSTACLES.SIZE/4 + CONSTANTS.OBSTACLES.SIZE/4, 
+                                Math.random() * CONSTANTS.OBSTACLES.THICKNESS/2 + CONSTANTS.OBSTACLES.THICKNESS/4, 
+                                angle, 0, Math.PI * 2);
                             ctx.stroke();
+                        }
+                        
+                        // Add stars
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                        for (let i = 0; i < 10; i++) {
+                            const starX = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.SIZE;
+                            const starY = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.THICKNESS;
+                            const starSize = Math.random() * 2 + 1;
+                            ctx.beginPath();
+                            ctx.arc(starX, starY, starSize, 0, Math.PI * 2);
+                            ctx.fill();
                         }
                         break;
 
                     case 'BARRIER_WALL':
-                        // Draw barrier wall with warning stripes
+                        // Draw barrier wall with space debris theme
                         ctx.beginPath();
                         ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
                                 CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
                         ctx.fillStyle = COLORS.OBSTACLES.BARRIER_WALL.CORE;
                         ctx.fill();
-                        // Add warning stripes
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.lineWidth = 4;
-                        for (let i = -CONSTANTS.OBSTACLES.SIZE/2; i <= CONSTANTS.OBSTACLES.SIZE/2; i += 30) {
+                        
+                        // Add asteroid belt pattern
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                        for (let i = -CONSTANTS.OBSTACLES.SIZE/2 + 10; i <= CONSTANTS.OBSTACLES.SIZE/2 - 10; i += 25) {
+                            const asteroidY = (Math.random() - 0.5) * (CONSTANTS.OBSTACLES.THICKNESS - 4);
+                            const asteroidSize = Math.random() * 5 + 3;
                             ctx.beginPath();
-                            ctx.moveTo(i, -CONSTANTS.OBSTACLES.THICKNESS/2);
-                            ctx.lineTo(i, CONSTANTS.OBSTACLES.THICKNESS/2);
-                            ctx.stroke();
+                            ctx.arc(i, asteroidY, asteroidSize, 0, Math.PI * 2);
+                            ctx.fill();
+                            
+                            // Add smaller debris around each asteroid
+                            for (let j = 0; j < 3; j++) {
+                                const debrisX = i + (Math.random() - 0.5) * 15;
+                                const debrisY = asteroidY + (Math.random() - 0.5) * 10;
+                                const debrisSize = Math.random() * 1.5 + 0.5;
+                                ctx.beginPath();
+                                ctx.arc(debrisX, debrisY, debrisSize, 0, Math.PI * 2);
+                                ctx.fill();
+                            }
                         }
                         break;
                 }
