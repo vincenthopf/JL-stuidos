@@ -245,6 +245,10 @@
                 ELITE: {
                     CORE: '#FFD700',
                     GLOW: '#B8860B'
+                },
+                BOSS: {
+                    CORE: '#FF00FF',
+                    GLOW: '#8B008B'
                 }
             }
         };
@@ -291,7 +295,9 @@
             enemyBullets: [],
             selectedWave: 1,
             gameStarted: false,
-            lastKeyPress: {}
+            lastKeyPress: {},
+            isBossFight: false,
+            bossDefeated: false
         };
 
         // Secret code sequence tracking
@@ -508,15 +514,28 @@
 
         // Game update functions
         function updateGame() {
-            if (!gameState.gameOver && !gameState.gameWon) {
-                updatePlayer();
-                updateBullets();
-                updateEnemies();
-                updateParticles();
-                updatePowerUps();
-                updateObstacles();
-                checkWaveComplete();
+            // Update all game elements
+            updateStars();
+            updatePlayer();
+            updateBullets();
+            updateEnemyBullets();
+            updateEnemies();
+            updatePowerUps();
+            updateObstacles();
+            updateParticles();
+            
+            // Spawn enemies if not in a boss fight
+            if (!gameState.waveComplete && 
+                !gameState.isBossFight && 
+                gameState.enemies.length < 5 && 
+                gameState.enemiesDefeated < gameState.enemiesPerWave) {
+                if (Math.random() < 0.02) {
+                    spawnEnemy();
+                }
             }
+            
+            // Check if wave is complete
+            checkWaveComplete();
         }
 
         function updatePlayer() {
@@ -639,124 +658,196 @@
         function updateBullets() {
             // Update player bullets
             gameState.player.bullets = gameState.player.bullets.filter(bullet => {
-                // Update position
+                // Move bullet
                 bullet.x += bullet.dx;
                 bullet.y += bullet.dy;
-                bullet.lifetime--;
-
-                // Check for wall collisions
-                for (let wall of gameState.obstacles) {
-                    const dx = bullet.x - wall.x;
-                    const dy = bullet.y - wall.y;
-                    
-                    if (wall.isHorizontal) {
-                        // Check horizontal wall collision
-                        if (Math.abs(dy) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                            Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
-                            // Create wall hit effect
-                            for (let i = 0; i < 5; i++) {
-                                gameState.particles.push(createParticle(
-                                    bullet.x, bullet.y,
-                                    COLORS.BULLET.GLOW,
-                                    1, 2, 10,
-                                    true
-                                ));
-                            }
-                            return false; // Remove bullet
-                        }
-                    } else {
-                        // Check vertical wall collision
-                        if (Math.abs(dx) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                            Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
-                            // Create wall hit effect
-                            for (let i = 0; i < 5; i++) {
-                                gameState.particles.push(createParticle(
-                                    bullet.x, bullet.y,
-                                    COLORS.BULLET.GLOW,
-                                    1, 2, 10,
-                                    true
-                                ));
-                            }
-                            return false; // Remove bullet
-                        }
-                    }
-                }
                 
-                // Reduce particle generation probability for better performance
-                if (Math.random() < 0.1) {
-                    gameState.particles.push(createParticle(
-                        bullet.x, bullet.y,
-                        COLORS.BULLET.GLOW,
-                        1, 2, 10,
-                        true
-                    ));
-                }
-                
-                // Remove bullets that go off-screen
+                // Check if bullet is off-screen
                 if (bullet.x < 0 || bullet.x > canvas.width || 
                     bullet.y < 0 || bullet.y > canvas.height) {
                     return false;
                 }
-
-                return bullet.lifetime > 0;
+                
+                // Check collision with enemies
+                let hitEnemy = false;
+                
+                // Direct check for boss collision - FIXED COLLISION DETECTION
+                gameState.enemies.forEach(enemy => {
+                    if (enemy.type === 'BOSS') {
+                        const dx = bullet.x - enemy.x;
+                        const dy = bullet.y - enemy.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Make boss hitbox slightly larger for easier hits
+                        if (dist < (CONSTANTS.BULLET.SIZE + enemy.size * 0.8)) {
+                            hitEnemy = true;
+                            
+                            // Calculate damage
+                            let damage = 40 * gameState.player.level.damage; // Higher base damage
+                            
+                            // Add visual hit flash effect
+                            enemy.hitFlash = 10; // Flash for 10 frames
+                            
+                            // Add dramatic hit particles
+                            for (let i = 0; i < 12; i++) {
+                                gameState.particles.push(createParticle(
+                                    bullet.x, bullet.y,
+                                    '#FFFFFF', // White flash
+                                    4, 5, 25,
+                                    true
+                                ));
+                            }
+                            
+                            // If enemy has a shield, reduce that first
+                            if (enemy.shield && enemy.shield > 0) {
+                                enemy.shield -= damage;
+                                if (enemy.shield < 0) {
+                                    // Apply remaining damage to health
+                                    enemy.health += enemy.shield;
+                                    enemy.shield = 0;
+                                }
+                            } else {
+                                // Apply damage directly to health
+                                enemy.health -= damage;
+                                // Log damage to console for debugging
+                                console.log(`Boss hit! Damage: ${damage}, Health: ${enemy.health}`);
+                            }
+                            
+                            // Check if boss is defeated
+                            if (enemy.health <= 0) {
+                                // Create explosion effect
+                                for (let i = 0; i < 100; i++) {
+                                    gameState.particles.push(createParticle(
+                                        enemy.x, enemy.y,
+                                        COLORS.ENEMY.BOSS.CORE,
+                                        5, 8, 60,
+                                        true
+                                    ));
+                                }
+                                
+                                // Give player extra score and health for defeating boss
+                                gameState.player.score += 500;
+                                gameState.player.health = Math.min(gameState.player.health + 50, gameState.player.maxHealth);
+                                
+                                // End boss fight
+                                gameState.isBossFight = false;
+                                gameState.bossDefeated = true;
+                                
+                                // Remove the boss
+                                gameState.enemies = gameState.enemies.filter(e => e !== enemy);
+                            }
+                        }
+                    }
+                });
+                
+                // Return false to remove the bullet if it hit an enemy
+                return !hitEnemy;
             });
+            
+            // Handle shooting
+            if (gameState.mouseDown && gameState.player.shootCooldown <= 0 && gameState.player.energy >= CONSTANTS.PLAYER.SHOOT_COST) {
+                shootBullet();
+            }
+        }
 
+        function shootBullet() {
+            const player = gameState.player;
+            const angle = Math.atan2(
+                gameState.mousePos.y - player.y,
+                gameState.mousePos.x - player.x
+            );
+
+            if (player.multiShot) {
+                // Create multiple bullets
+                for (let i = -2; i <= 2; i++) {
+                    const spreadAngle = angle + i * 0.1;
+                    player.bullets.push({
+                        x: player.x,
+                        y: player.y,
+                        dx: Math.cos(spreadAngle) * CONSTANTS.BULLET.SPEED,
+                        dy: Math.sin(spreadAngle) * CONSTANTS.BULLET.SPEED,
+                        lifetime: CONSTANTS.BULLET.LIFETIME
+                    });
+                }
+            } else {
+                // Create single bullet
+                player.bullets.push({
+                    x: player.x,
+                    y: player.y,
+                    dx: Math.cos(angle) * CONSTANTS.BULLET.SPEED,
+                    dy: Math.sin(angle) * CONSTANTS.BULLET.SPEED,
+                    lifetime: CONSTANTS.BULLET.LIFETIME
+                });
+            }
+
+            player.shootCooldown = CONSTANTS.PLAYER.SHOOT_COOLDOWN;
+            player.energy -= CONSTANTS.PLAYER.SHOOT_COST;
+
+            // Muzzle flash effect
+            for (let i = 0; i < 5; i++) {
+                gameState.particles.push(createParticle(
+                    player.x, player.y,
+                    COLORS.BULLET.CORE,
+                    3, 4, 15,
+                    true
+                ));
+            }
+        }
+
+        function updateEnemyBullets() {
             // Update enemy bullets
             gameState.enemyBullets = gameState.enemyBullets.filter(bullet => {
-                // Update position
+                // Move bullet
                 bullet.x += bullet.dx;
                 bullet.y += bullet.dy;
+                
+                // Reduce lifetime
                 bullet.lifetime--;
-
-                // Check for wall collisions
-                for (let wall of gameState.obstacles) {
-                    const dx = bullet.x - wall.x;
-                    const dy = bullet.y - wall.y;
-                    
-                    if (wall.isHorizontal) {
-                        // Check horizontal wall collision
-                        if (Math.abs(dy) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                            Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
-                            // Create wall hit effect
-                            for (let i = 0; i < 5; i++) {
-                                gameState.particles.push(createParticle(
-                                    bullet.x, bullet.y,
-                                    bullet.fromElite ? COLORS.ENEMY.ELITE.GLOW : 
-                                    bullet.fromShooter ? COLORS.ENEMY.SHOOTER.GLOW : 
-                                    COLORS.ENEMY.NORMAL.GLOW,
-                                    1, 2, 10,
-                                    true
-                                ));
-                            }
-                            return false; // Remove bullet
-                        }
-                    } else {
-                        // Check vertical wall collision
-                        if (Math.abs(dx) < CONSTANTS.BULLET.SIZE + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                            Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
-                            // Create wall hit effect
-                            for (let i = 0; i < 5; i++) {
-                                gameState.particles.push(createParticle(
-                                    bullet.x, bullet.y,
-                                    bullet.fromElite ? COLORS.ENEMY.ELITE.GLOW : 
-                                    bullet.fromShooter ? COLORS.ENEMY.SHOOTER.GLOW : 
-                                    COLORS.ENEMY.NORMAL.GLOW,
-                                    1, 2, 10,
-                                    true
-                                ));
-                            }
-                            return false; // Remove bullet
-                        }
-                    }
-                }
-
-                // Remove bullets that go off-screen
-                if (bullet.x < 0 || bullet.x > canvas.width || 
-                    bullet.y < 0 || bullet.y > canvas.height) {
+                
+                // Remove if lifetime is over
+                if (bullet.lifetime <= 0) {
                     return false;
                 }
-
-                return bullet.lifetime > 0;
+                
+                // Define bullet size based on source
+                const bulletSize = bullet.fromBoss ? (bullet.size || 12) : 8;
+                
+                // Check collision with player
+                const dx = gameState.player.x - bullet.x;
+                const dy = gameState.player.y - bullet.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5) {
+                    // If shield is active, reduce shield instead of health
+                    if (gameState.player.shield > 0) {
+                        gameState.player.shield -= bullet.fromBoss ? 20 : 10;
+                        if (gameState.player.shield < 0) gameState.player.shield = 0;
+                    } else {
+                        // Bullets from boss deal more damage
+                        const damage = bullet.fromBoss ? 15 : 8;
+                        gameState.player.health -= damage;
+                        
+                        // Check for game over
+                        if (gameState.player.health <= 0) {
+                            gameState.gameOver = true;
+                        }
+                    }
+                    
+                    // Create hit effect
+                    for (let i = 0; i < 8; i++) {
+                        gameState.particles.push(createParticle(
+                            bullet.x, bullet.y,
+                            bullet.fromBoss ? COLORS.ENEMY.BOSS.CORE : '#FF4040',
+                            2, 3, 15,
+                            true
+                        ));
+                    }
+                    
+                    return false;
+                }
+                
+                // Keep bullet
+                return true;
             });
         }
 
@@ -936,7 +1027,7 @@
 
         function updateEnemies() {
             // Spawn enemies
-            if (!gameState.waveComplete && gameState.enemies.length < 5 && 
+            if (!gameState.waveComplete && !gameState.isBossFight && gameState.enemies.length < 5 && 
                 gameState.enemiesDefeated < gameState.enemiesPerWave) {
                 if (Math.random() < 0.02) {
                     spawnEnemy();
@@ -945,58 +1036,228 @@
 
             // Apply time warp speed reduction if active
             const speedMultiplier = gameState.timeWarpActive ? 0.4 : 1.0;
-
+            
             // Update existing enemies
             gameState.enemies = gameState.enemies.filter(enemy => {
+                // Skip updates for enemies that are off-screen by a large margin
+                if (enemy.x < -100 || enemy.x > canvas.width + 100 || 
+                    enemy.y < -100 || enemy.y > canvas.height + 100) {
+                    return true; // Keep enemy in array but skip updates
+                }
+                
+                // Calculate distance to player
                 const dx = gameState.player.x - enemy.x;
                 const dy = gameState.player.y - enemy.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-
-                // Movement behavior based on enemy type
-                if (enemy.type === 'SHOOTER') {
-                    // Initialize shooter properties if not set
-                    enemy.bulletCooldown = enemy.bulletCooldown || 0;
-                    enemy.bulletCooldown--;
-
-                    // Calculate target position based on distance
-                    let targetX = gameState.player.x;
-                    let targetY = gameState.player.y;
+                
+                // Handle boss behavior
+                if (enemy.type === 'BOSS') {
+                    // Update hit flash effect if active
+                    if (enemy.hitFlash > 0) {
+                        enemy.hitFlash--;
+                    }
                     
-                    if (dist < 400) {
-                        // Move away from player
-                        targetX = enemy.x - dx;
-                        targetY = enemy.y - dy;
-                    } else if (dist > 600) {
-                        // Move toward player
-                        targetX = gameState.player.x;
-                        targetY = gameState.player.y;
+                    // Boss behavior
+                    enemy.attackTimer--;
+                    
+                    if (enemy.attackTimer <= 0) {
+                        // Change attack pattern periodically
+                        enemy.attackPattern = (enemy.attackPattern + 1) % 3;
+                        enemy.attackTimer = 300;  // 5 seconds at 60fps
+                        
+                        // Create visual effect for pattern change
+                        for (let i = 0; i < 30; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.BOSS.CORE,
+                                3, 5, 40,
+                                true
+                            ));
+                        }
+                    }
+                    
+                    // Phase transition at 50% health
+                    if (enemy.health <= enemy.maxHealth * 0.5 && enemy.phase === 1) {
+                        enemy.phase = 2;
+                        enemy.shield = 75;  // Reduced from 150 to 75
+                        
+                        // Visual effect for phase change
+                        for (let i = 0; i < 50; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                '#FFFFFF',
+                                5, 8, 60,
+                                true
+                            ));
+                        }
+                    }
+                    
+                    // Different movement patterns
+                    if (enemy.attackPattern === 0) {
+                        // Pattern 0: Side to side movement
+                        enemy.moveDirection = enemy.moveDirection || 1;
+                        enemy.x += enemy.moveDirection * enemy.speed;
+                        
+                        // Reverse direction at screen edges
+                        if (enemy.x < enemy.size || enemy.x > canvas.width - enemy.size) {
+                            enemy.moveDirection *= -1;
+                        }
+                    } else if (enemy.attackPattern === 1) {
+                        // Pattern 1: Circle around the player
+                        const circleRadius = 300;
+                        const circleSpeed = 0.01;
+                        
+                        // Initialize or update circle position
+                        enemy.circleAngle = (enemy.circleAngle || 0) + circleSpeed;
+                        
+                        // Calculate new position
+                        enemy.x = gameState.player.x + Math.cos(enemy.circleAngle) * circleRadius;
+                        enemy.y = gameState.player.y + Math.sin(enemy.circleAngle) * circleRadius;
+                        
+                        // Keep in bounds
+                        enemy.x = Math.max(enemy.size, Math.min(canvas.width - enemy.size, enemy.x));
+                        enemy.y = Math.max(enemy.size, Math.min(canvas.height - enemy.size, enemy.y));
                     } else {
-                        // Strafe around the player
-                        const strafeAngle = Math.atan2(dy, dx) + Math.PI / 2;
-                        const strafeDirection = Math.sin(Date.now() / 1000) > 0 ? 1 : -1;
-                        targetX = enemy.x + Math.cos(strafeAngle) * strafeDirection;
-                        targetY = enemy.y + Math.sin(strafeAngle) * strafeDirection;
+                        // Pattern 2: Direct approach then retreat
+                        if (dist > 250) {
+                            // Approach player
+                            enemy.x += dx / dist * enemy.speed;
+                            enemy.y += dy / dist * enemy.speed;
+                        } else {
+                            // Retreat from player
+                            enemy.x -= dx / dist * enemy.speed;
+                            enemy.y -= dy / dist * enemy.speed;
+                        }
                     }
-
-                    // Find safe direction to move
-                    const safeDir = findSafeDirection(enemy, targetX, targetY, enemy.speed * 0.5 * speedMultiplier);
-                    if (safeDir) {
-                        enemy.x += safeDir.dx * enemy.speed * 0.5 * speedMultiplier;
-                        enemy.y += safeDir.dy * enemy.speed * 0.5 * speedMultiplier;
+                    
+                    // Boss attacks
+                    enemy.bulletCooldown--;
+                    
+                    if (enemy.bulletCooldown <= 0) {
+                        // Different attacks based on phase
+                        if (enemy.phase === 1) {
+                            // Phase 1 attack: Spiral bullets
+                            const bulletCount = 8;
+                            for (let i = 0; i < bulletCount; i++) {
+                                const angle = (enemy.circleAngle || 0) + (Math.PI * 2 * i / bulletCount);
+                                
+                                gameState.enemyBullets.push({
+                                    x: enemy.x,
+                                    y: enemy.y,
+                                    dx: Math.cos(angle) * 3,
+                                    dy: Math.sin(angle) * 3,
+                                    lifetime: 120,
+                                    fromBoss: true
+                                });
+                            }
+                        } else {
+                            // Phase 2 attack: Targeted shots + random bullets
+                            
+                            // Targeted shot at player
+                            const angle = Math.atan2(dy, dx);
+                            gameState.enemyBullets.push({
+                                x: enemy.x,
+                                y: enemy.y,
+                                dx: Math.cos(angle) * 5,
+                                dy: Math.sin(angle) * 5,
+                                lifetime: 120,
+                                fromBoss: true,
+                                size: 15
+                            });
+                            
+                            // Random spread shots
+                            for (let i = 0; i < 5; i++) {
+                                const randomAngle = Math.random() * Math.PI * 2;
+                                gameState.enemyBullets.push({
+                                    x: enemy.x,
+                                    y: enemy.y,
+                                    dx: Math.cos(randomAngle) * 4,
+                                    dy: Math.sin(randomAngle) * 4,
+                                    lifetime: 90,
+                                    fromBoss: true
+                                });
+                            }
+                        }
+                        
+                        // Visual effect
+                        for (let i = 0; i < 15; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.BOSS.CORE,
+                                3, 5, 30,
+                                true
+                            ));
+                        }
+                        
+                        // Reset cooldown (faster in phase 2)
+                        enemy.bulletCooldown = enemy.phase === 1 ? 60 : 45;
                     }
-
-                    // Shoot at player when at good distance and cooldown is ready
-                    if (dist >= 400 && dist <= 600 && enemy.bulletCooldown <= 0) {
-                        const shootAngle = Math.atan2(dy, dx);
+                    
+                    // Continuous particle effect for boss
+                    if (Math.random() < 0.2) {
+                        gameState.particles.push(createParticle(
+                            enemy.x + (Math.random() - 0.5) * enemy.size,
+                            enemy.y + (Math.random() - 0.5) * enemy.size,
+                            COLORS.ENEMY.BOSS.CORE,
+                            1, 
+                            enemy.size * 0.2,
+                            30,
+                            true
+                        ));
+                    }
+                    
+                    // Check if boss is defeated
+                    if (enemy.health <= 0) {
+                        // Boss defeated effects
+                        for (let i = 0; i < 100; i++) {
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                COLORS.ENEMY.BOSS.CORE,
+                                8, 10, 120,
+                                true
+                            ));
+                        }
+                        
+                        // Give player extra score and health for defeating boss
+                        gameState.player.score += 500;
+                        gameState.player.health = Math.min(gameState.player.health + 50, gameState.player.maxHealth);
+                        
+                        // End boss fight
+                        gameState.isBossFight = false;
+                        gameState.bossDefeated = true;
+                        
+                        return false;
+                    }
+                    
+                    return true;
+                } else if (enemy.type === 'SHOOTER') {
+                    // Shooter specific behavior - keep at a distance and fire
+                    const targetDist = 300;
+                    
+                    if (dist < targetDist - 50) {
+                        // Too close, move away
+                        enemy.x -= dx / dist * enemy.speed * speedMultiplier;
+                        enemy.y -= dy / dist * enemy.speed * speedMultiplier;
+                    } else if (dist > targetDist + 50) {
+                        // Too far, move closer
+                        enemy.x += dx / dist * enemy.speed * speedMultiplier;
+                        enemy.y += dy / dist * enemy.speed * speedMultiplier;
+                    }
+                    
+                    // Shooting logic
+                    enemy.bulletCooldown--;
+                    
+                    if (enemy.bulletCooldown <= 0 && dist < 500) {
+                        // Fire a bullet at the player
                         gameState.enemyBullets.push({
                             x: enemy.x,
                             y: enemy.y,
-                            dx: Math.cos(shootAngle) * 6,
-                            dy: Math.sin(shootAngle) * 6,
-                            lifetime: 90
+                            dx: dx / dist * 5,
+                            dy: dy / dist * 5,
+                            lifetime: 60
                         });
                         
-                        // Create shooting effect
+                        // Create particle effect
                         for (let i = 0; i < 5; i++) {
                             gameState.particles.push(createParticle(
                                 enemy.x, enemy.y,
@@ -1011,6 +1272,7 @@
                     }
                 } else if (enemy.type === 'BOMBER') {
                     // Bomber approaches and explodes
+                    enemy.chargeTimer = enemy.chargeTimer || 60;
                     enemy.chargeTimer--;
                     
                     if (enemy.chargeTimer <= 0) {
@@ -1022,14 +1284,16 @@
                         enemy.chargeTimer = 60;
                     }
 
-                    // Find safe direction to move
+                    // Move towards target
                     const targetX = enemy.chargeTarget ? enemy.chargeTarget.x : gameState.player.x;
                     const targetY = enemy.chargeTarget ? enemy.chargeTarget.y : gameState.player.y;
-                    const safeDir = findSafeDirection(enemy, targetX, targetY, enemy.speed * speedMultiplier);
+                    const targetDx = targetX - enemy.x;
+                    const targetDy = targetY - enemy.y;
+                    const targetDist = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
                     
-                    if (safeDir) {
-                        enemy.x += safeDir.dx * enemy.speed * speedMultiplier;
-                        enemy.y += safeDir.dy * enemy.speed * speedMultiplier;
+                    if (targetDist > 0) {
+                        enemy.x += targetDx / targetDist * enemy.speed * speedMultiplier;
+                        enemy.y += targetDy / targetDist * enemy.speed * speedMultiplier;
                     }
                 } else if (enemy.type === 'ELITE') {
                     // Elite enemy behavior
@@ -1041,34 +1305,20 @@
                     enemy.attackCooldown--;
                     
                     if (enemy.teleportCooldown <= 0 || (enemy.health < enemy.maxHealth * 0.3 && enemy.teleportCooldown <= 60)) {
-                        createTeleportEffect(enemy.x, enemy.y);
+                        // Teleport effect placeholder
                         
                         // Find a safe position to teleport to
-                        let newX, newY;
-                        let attempts = 0;
-                        do {
-                            const angle = Math.random() * Math.PI * 2;
-                            const distance = 200 + Math.random() * 200;
-                            newX = gameState.player.x + Math.cos(angle) * distance;
-                            newY = gameState.player.y + Math.sin(angle) * distance;
-                            attempts++;
-                        } while (isPositionBlocked(newX, newY, enemy.size) && attempts < 10);
-                        
-                        if (!isPositionBlocked(newX, newY, enemy.size)) {
-                            enemy.x = newX;
-                            enemy.y = newY;
-                            createTeleportEffect(enemy.x, enemy.y);
-                        }
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = 200 + Math.random() * 200;
+                        enemy.x = gameState.player.x + Math.cos(angle) * distance;
+                        enemy.y = gameState.player.y + Math.sin(angle) * distance;
                         
                         enemy.teleportCooldown = 180;
                     }
                     
-                    // Find safe direction to move
-                    const safeDir = findSafeDirection(enemy, gameState.player.x, gameState.player.y, enemy.speed * speedMultiplier);
-                    if (safeDir) {
-                        enemy.x += safeDir.dx * enemy.speed * speedMultiplier;
-                        enemy.y += safeDir.dy * enemy.speed * speedMultiplier;
-                    }
+                    // Move towards player
+                    enemy.x += dx / dist * enemy.speed * speedMultiplier * 0.5;
+                    enemy.y += dy / dist * enemy.speed * speedMultiplier * 0.5;
                     
                     // Attack logic
                     if (enemy.attackCooldown <= 0 && dist < 500) {
@@ -1086,39 +1336,28 @@
                             });
                         }
                         
-                        for (let i = 0; i < 10; i++) {
-                            gameState.particles.push(createParticle(
-                                enemy.x, enemy.y,
-                                COLORS.ENEMY.ELITE.CORE,
-                                3, 5, 15,
-                                true
-                            ));
-                        }
-                        
                         enemy.attackCooldown = 120;
                     }
                 } else {
                     // Default enemy behavior (NORMAL, FAST, TANK)
-                    // Find safe direction to move
-                    const safeDir = findSafeDirection(enemy, gameState.player.x, gameState.player.y, enemy.speed * speedMultiplier);
-                    if (safeDir) {
-                        enemy.x += safeDir.dx * enemy.speed * speedMultiplier;
-                        enemy.y += safeDir.dy * enemy.speed * speedMultiplier;
-                    }
+                    // Simply move towards player
+                    enemy.x += dx / dist * enemy.speed * speedMultiplier;
+                    enemy.y += dy / dist * enemy.speed * speedMultiplier;
                 }
-
-                // Reduce particle generation probability for better performance
+                
+                // Reduce particle generation for better performance
                 if (Math.random() < 0.05) {
                     gameState.particles.push(createParticle(
                         enemy.x, enemy.y,
-                        enemy.color || 'red',
+                        COLORS.ENEMY[enemy.type] ? COLORS.ENEMY[enemy.type].CORE : 'red',
                         1, 
                         enemy.size * 0.3,
                         20
                     ));
                 }
-
-                // Check collisions
+                
+                // Check collisions and bullet hits
+                // Return true to keep the enemy, false to remove it
                 return !checkEnemyCollisions(enemy, dist);
             });
         }
@@ -1144,6 +1383,11 @@
             if (gameState.currentWave >= 5) availableTypes.push('SHOOTER'); // Was 4
             if (gameState.currentWave >= 6) availableTypes.push('BOMBER'); // Was 5
             if (gameState.currentWave >= 7) availableTypes.push('ELITE'); // Was 6
+            
+            // Don't spawn normal enemies during boss fight
+            if (gameState.isBossFight) {
+                return;
+            }
             
             const enemyType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
             
@@ -1211,6 +1455,87 @@
             gameState.enemies.push(enemyConfig);
         }
 
+        // Add function to spawn boss
+        function spawnBoss() {
+            // First, check if there's already a boss - if so, don't spawn another one
+            const existingBoss = gameState.enemies.find(enemy => enemy.type === 'BOSS');
+            if (existingBoss) {
+                gameState.isBossFight = true;
+                return; // Already have a boss, don't spawn another
+            }
+            
+            // Boss appears at the top center of the screen
+            const x = canvas.width / 2;
+            const y = 100;
+            
+            // Boss config - REDUCED HEALTH AND SHIELD FOR EASIER DAMAGE
+            const bossConfig = {
+                x,
+                y,
+                type: 'BOSS',
+                speed: 1.2,
+                health: 500 + (gameState.currentWave * 50),  // Reduced from 1000 to 500
+                maxHealth: 500 + (gameState.currentWave * 50),  // Reduced from 1000 to 500
+                size: 60,
+                bulletCooldown: 60,
+                attackPattern: 0,
+                attackTimer: 120,
+                shield: 100,  // Reduced from 200 to 100
+                phase: 1,
+                hitFlash: 0  // Add a hit flash timer for visual feedback
+            };
+            
+            // Announce boss arrival
+            showBossAnnouncement();
+            
+            // Clear all obstacles for a clean arena
+            gameState.obstacles = [];
+            
+            // Also clear any normal enemies to make it a true 1v1 boss fight
+            gameState.enemies = gameState.enemies.filter(enemy => enemy.type === 'BOSS');
+            
+            // If we have no bosses (which we shouldn't after the filter), add the new boss
+            if (gameState.enemies.length === 0) {
+                gameState.enemies.push(bossConfig);
+            }
+            
+            gameState.isBossFight = true;
+            gameState.bossDefeated = false;
+        }
+
+        function showBossAnnouncement() {
+            // Create a temporary announcement element
+            const announcement = document.createElement('div');
+            announcement.style.position = 'absolute';
+            announcement.style.top = '30%';
+            announcement.style.left = '50%';
+            announcement.style.transform = 'translate(-50%, -50%)';
+            announcement.style.color = '#FF00FF';
+            announcement.style.fontSize = '48px';
+            announcement.style.fontWeight = 'bold';
+            announcement.style.textShadow = '0 0 20px #8B008B';
+            announcement.style.zIndex = '100';
+            announcement.style.opacity = '0';
+            announcement.style.transition = 'opacity 1s ease-in-out';
+            announcement.textContent = 'BOSS APPROACHING';
+            
+            // Add to body
+            document.body.appendChild(announcement);
+            
+            // Animate in
+            setTimeout(() => {
+                announcement.style.opacity = '1';
+            }, 100);
+            
+            // Remove after a few seconds
+            setTimeout(() => {
+                announcement.style.opacity = '0';
+                setTimeout(() => {
+                    document.body.removeChild(announcement);
+                }, 1000);
+            }, 3000);
+        }
+
         function checkEnemyCollisions(enemy, dist) {
             // Check collision with player
             if (dist < CONSTANTS.PLAYER.BASE_SIZE + enemy.size * 0.5) {
@@ -1226,6 +1551,7 @@
                     if (enemy.type === 'SHOOTER') damage = 8;
                     if (enemy.type === 'BOMBER') damage = 12;
                     if (enemy.type === 'ELITE') damage = 14;
+                    if (enemy.type === 'BOSS') damage = 25;
                     
                     // Reduce damage for early waves
                     if (gameState.currentWave <= 3) {
@@ -1242,8 +1568,7 @@
                 
                 // Special effect for elite collision
                 if (enemy.type === 'ELITE') {
-                    // Teleport away after collision
-                    createTeleportEffect(enemy.x, enemy.y);
+                    // Teleport effect placeholder
                     
                     // Teleport to a random position close to player
                     const angle = Math.random() * Math.PI * 2;
@@ -1251,108 +1576,142 @@
                     enemy.x = gameState.player.x + Math.cos(angle) * distance;
                     enemy.y = gameState.player.y + Math.sin(angle) * distance;
                     
-                    createTeleportEffect(enemy.x, enemy.y);
+                    return false; // Don't destroy elite on collision
+                }
+                
+                // Boss doesn't die from collision, just bounces back
+                if (enemy.type === 'BOSS') {
+                    // Bounce effect
+                    const angle = Math.atan2(
+                        enemy.y - gameState.player.y,
+                        enemy.x - gameState.player.x
+                    );
+                    enemy.x += Math.cos(angle) * 50;
+                    enemy.y += Math.sin(angle) * 50;
                     
-                    // Don't destroy elite on collision
-                    return false;
-                } 
+                    return false; // Don't destroy boss on collision
+                }
+                
                 // Bomber explodes on collision
-                else if (enemy.type === 'BOMBER') {
-                    explodeBomber(enemy);
-                    return true;
-                }
-                // Normal explosion for other enemy types
-                else {
-                    createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
-                    return true;
-                }
-            }
-
-            // Check collision with bullets
-            for (let i = gameState.player.bullets.length - 1; i >= 0; i--) {
-                const bullet = gameState.player.bullets[i];
-                const bulletDist = Math.sqrt(
-                    (bullet.x - enemy.x) * (bullet.x - enemy.x) +
-                    (bullet.y - enemy.y) * (bullet.y - enemy.y)
-                );
-
-                if (bulletDist < CONSTANTS.BULLET.SIZE + enemy.size) {
-                    // Apply damage based on player's damage level and enemy type
-                    let baseDamage = 40; // Increased base damage
-                    let damageMultiplier = gameState.player.level.damage;
+                if (enemy.type === 'BOMBER') {
+                    // Bomber explosion effect
+                    for (let i = 0; i < 30; i++) {
+                        gameState.particles.push(createParticle(
+                            enemy.x, enemy.y,
+                            COLORS.ENEMY.BOMBER.CORE,
+                            4, 6, 40,
+                            true
+                        ));
+                    }
                     
-                    // Damage adjustment for different enemy types
-                    if (enemy.type === 'FAST') baseDamage *= 1.2; // Fast enemies take more damage
-                    if (enemy.type === 'TANK') baseDamage *= 0.7; // Tank enemies take less damage
-                    if (enemy.type === 'ELITE') {
-                        // Elite enemies have shield that absorbs damage first
-                        if (enemy.shield > 0) {
-                            enemy.shield -= baseDamage * damageMultiplier * 0.5;
-                            // Create shield hit effect
-                            for (let j = 0; j < 5; j++) {
+                    // Additional damage to player on explosion
+                    if (gameState.player.shield > 0) {
+                        gameState.player.shield -= 30;
+                        if (gameState.player.shield < 0) gameState.player.shield = 0;
+                    } else {
+                        gameState.player.health -= 20;
+                        if (gameState.player.health <= 0) {
+                            gameState.gameOver = true;
+                        }
+                    }
+                    
+                    return true; // Destroy bomber on collision
+                }
+                
+                // Default explosion for normal enemies
+                for (let i = 0; i < 15; i++) {
+                    gameState.particles.push(createParticle(
+                        enemy.x, enemy.y,
+                        COLORS.ENEMY[enemy.type] ? COLORS.ENEMY[enemy.type].CORE : 'red',
+                        3, 4, 30,
+                        true
+                    ));
+                }
+                
+                // Increase score and enemy count
+                gameState.player.score += 10;
+                gameState.enemiesDefeated++;
+                checkWaveComplete();
+                
+                return true; // Destroy normal enemy on collision
+            }
+            
+            // For non-boss enemies, continue using the existing collision system
+            if (enemy.type !== 'BOSS') {
+                // Check collision with player bullets
+                let isHit = false;
+                gameState.player.bullets = gameState.player.bullets.filter(bullet => {
+                    const dx = bullet.x - enemy.x;
+                    const dy = bullet.y - enemy.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < CONSTANTS.BULLET.SIZE + enemy.size) {
+                        // Calculate damage based on bullet properties and player level
+                        let damage = 20 * gameState.player.level.damage;
+                        
+                        // If enemy has a shield, reduce that first
+                        if (enemy.shield && enemy.shield > 0) {
+                            enemy.shield -= damage;
+                            if (enemy.shield < 0) {
+                                // Apply remaining damage to health
+                                enemy.health += enemy.shield;
+                                enemy.shield = 0;
+                            }
+                        } else {
+                            // Apply damage directly to health
+                            enemy.health -= damage;
+                        }
+                        
+                        // Create hit effect
+                        for (let i = 0; i < 5; i++) {
+                            gameState.particles.push(createParticle(
+                                bullet.x, bullet.y,
+                                COLORS.BULLET.CORE,
+                                2, 3, 15,
+                                true
+                            ));
+                        }
+                        
+                        // Check if enemy is defeated
+                        if (enemy.health <= 0) {
+                            // Create explosion effect
+                            let particleCount = enemy.type === 'ELITE' || enemy.type === 'TANK' ? 30 : 15;
+                                      
+                            for (let i = 0; i < particleCount; i++) {
                                 gameState.particles.push(createParticle(
-                                    bullet.x, bullet.y,
-                                    COLORS.ENEMY.ELITE.GLOW,
-                                    2, 3, 15,
+                                    enemy.x, enemy.y,
+                                    COLORS.ENEMY[enemy.type] ? COLORS.ENEMY[enemy.type].CORE : 'red',
+                                    3, 4, 30,
                                     true
                                 ));
                             }
-                            gameState.player.bullets.splice(i, 1);
-                            // If shield is depleted, continue to damage health
-                            if (enemy.shield <= 0) {
-                                enemy.shield = 0;
-                                enemy.health -= baseDamage * damageMultiplier * 0.5;
-                            } else {
-                                // Shield absorbed all damage
-                                continue;
-                            }
-                        } else {
-                            enemy.health -= baseDamage * damageMultiplier * 0.8; // Elite takes less damage
+                            
+                            // Award score based on enemy type
+                            let scoreValue = 10;
+                            if (enemy.type === 'FAST') scoreValue = 15;
+                            if (enemy.type === 'TANK') scoreValue = 25;
+                            if (enemy.type === 'SHOOTER') scoreValue = 30;
+                            if (enemy.type === 'BOMBER') scoreValue = 35;
+                            if (enemy.type === 'ELITE') scoreValue = 50;
+                            
+                            gameState.player.score += scoreValue;
+                            gameState.enemiesDefeated++;
+                            
+                            // Check if wave is complete
+                            checkWaveComplete();
+                            
+                            isHit = true;
                         }
-                    } else {
-                        enemy.health -= baseDamage * damageMultiplier;
-                    }
-                    
-                    gameState.player.bullets.splice(i, 1);
-
-                    if (enemy.health <= 0) {
-                        // Score based on enemy type
-                        let scoreValue = 100;
-                        if (enemy.type === 'FAST') scoreValue = 150;
-                        if (enemy.type === 'TANK') scoreValue = 200;
-                        if (enemy.type === 'SHOOTER') scoreValue = 250;
-                        if (enemy.type === 'BOMBER') scoreValue = 100;
-                        if (enemy.type === 'ELITE') scoreValue = 300;
                         
-                        gameState.player.score += scoreValue;
-                        gameState.enemiesDefeated++;
-                        
-                        // Special death effect for bomber
-                        if (enemy.type === 'BOMBER') {
-                            explodeBomber(enemy);
-                        } 
-                        // Special death effect for elite
-                        else if (enemy.type === 'ELITE') {
-                            // More impressive explosion for elite
-                            for (let i = 0; i < 3; i++) {
-                                setTimeout(() => {
-                                    createExplosion(
-                                        enemy.x + (Math.random() * 50 - 25),
-                                        enemy.y + (Math.random() * 50 - 25),
-                                        COLORS.ENEMY.ELITE.CORE
-                                    );
-                                }, i * 100);
-                            }
-                        }
-                        // Normal explosion for other types
-                        else {
-                            createExplosion(enemy.x, enemy.y, COLORS.ENEMY[enemy.type].CORE);
-                        }
-                        return true;
+                        return false; // Remove the bullet
                     }
-                }
+                    return true; // Keep the bullet
+                });
+                
+                return isHit; // Return true if enemy was destroyed
             }
-
+            
+            // Boss enemies never get destroyed here (handled in updateBullets)
             return false;
         }
 
@@ -1569,9 +1928,29 @@
                     if (gameState.currentWave >= gameState.wavesTotal) {
                         gameState.gameWon = true;
                     } else {
-                        // Show upgrade menu and pause the game
-                        gamePaused = true;
-                        showUpgradeMenu();
+                        // Check if it's time for a boss fight (every 5 waves)
+                        if (gameState.currentWave % 5 === 0 && !gameState.bossDefeated) {
+                            // Remove all obstacles before boss fight
+                            gameState.obstacles = [];
+                            
+                            // Make sure we're not already in a boss fight
+                            if (!gameState.isBossFight) {
+                                // Start boss fight
+                                spawnBoss();
+                                gameState.waveComplete = false;  // Continue the wave
+                            }
+                        } else if (gameState.isBossFight && gameState.bossDefeated) {
+                            // Boss was defeated, proceed to next wave
+                            gameState.isBossFight = false;
+                            gameState.bossDefeated = false;
+                            // Show upgrade menu and pause the game
+                            gamePaused = true;
+                            showUpgradeMenu();
+                        } else {
+                            // Normal wave complete, show upgrade menu
+                            gamePaused = true;
+                            showUpgradeMenu();
+                        }
                     }
                 }, 500);
             }
@@ -1693,7 +2072,9 @@
                 enemyBullets: [],
                 selectedWave: 1,
                 gameStarted: true,
-                lastKeyPress: {}
+                lastKeyPress: {},
+                isBossFight: false,
+                bossDefeated: false
             };
             
             // Reset error state
@@ -1798,16 +2179,17 @@
         }
 
         function updateObstacles() {
-            // Update existing obstacles
+            // Skip obstacle generation during boss fights
+            if (gameState.isBossFight) {
+                return;
+            }
+            
+            // Existing obstacle update logic
             gameState.obstacles = gameState.obstacles.filter(obstacle => {
                 obstacle.lifetime--;
-                if (obstacle.lifetime <= 0) {
-                    createExplosion(obstacle.x, obstacle.y, COLORS.OBSTACLES[obstacle.type].CORE);
-                    return false;
-                }
-                return true;
+                return obstacle.lifetime > 0;
             });
-
+            
             // Spawn new obstacles if below max count
             if (gameState.obstacles.length < CONSTANTS.OBSTACLES.MAX_COUNT) {
                 if (Math.random() < CONSTANTS.OBSTACLES.SPAWN_CHANCE) {
@@ -2001,30 +2383,19 @@
 
         // Drawing functions
         function draw() {
-            // Clear canvas with a complete black fill instead of partial transparency 
-            // to prevent slowdown from too many accumulated transparency layers
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw starfield
-            drawStars();
-
-            // Draw game elements
-            drawParticles();
-            drawShockwaves();
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw in specific order for layering
+            drawBackground();
             drawObstacles();
-            drawPowerUps();
             drawEnemies();
+            drawPowerUps();
             drawBullets();
+            drawEnemyBullets(); // Add this line
             drawPlayer();
+            drawParticles();
             drawUI();
-
-            // Draw game state messages
-            if (gameState.gameOver) {
-                drawGameOver();
-            } else if (gameState.gameWon) {
-                drawVictory();
-            }
         }
 
         function drawStars() {
@@ -2213,79 +2584,132 @@
 
         function drawEnemies() {
             gameState.enemies.forEach(enemy => {
-                // Special rendering for bomber when flashing
-                if (enemy.type === 'BOMBER' && enemy.flashColor) {
-                    drawGlow(enemy.x, enemy.y, enemy.size + 15, 
-                            'rgba(255, 255, 255, 0.5)');
-                } else {
-                    drawGlow(enemy.x, enemy.y, enemy.size + 10, 
-                            COLORS.ENEMY[enemy.type].GLOW.replace(')', ', 0.3)'));
+                // Skip drawing enemies that are far off-screen to improve performance
+                if (enemy.x < -100 || enemy.x > canvas.width + 100 || 
+                    enemy.y < -100 || enemy.y > canvas.height + 100) {
+                    return;
                 }
                 
-                // Draw elite shield if applicable
-                if (enemy.type === 'ELITE' && enemy.shield > 0) {
-                    ctx.beginPath();
-                    ctx.arc(enemy.x, enemy.y, enemy.size + 5, 0, Math.PI * 2);
-                    ctx.strokeStyle = `rgba(255, 215, 0, ${enemy.shield / 100})`;
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
+                ctx.save();
                 
-                ctx.beginPath();
-                ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
-                const gradient = ctx.createRadialGradient(
-                    enemy.x, enemy.y, 0,
-                    enemy.x, enemy.y, enemy.size
-                );
-                gradient.addColorStop(0, COLORS.ENEMY[enemy.type].CORE);
-                gradient.addColorStop(1, COLORS.ENEMY[enemy.type].GLOW);
-                ctx.fillStyle = gradient;
-                ctx.fill();
-
-                // Health bar
-                const healthWidth = enemy.size * 2;
-                const healthHeight = 4;
-                const healthX = enemy.x - healthWidth/2;
-                const healthY = enemy.y - enemy.size - 10;
-
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-                ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
-                ctx.fillRect(healthX, healthY, healthWidth * (enemy.health / enemy.maxHealth), healthHeight);
-            });
-            
-            // Draw enemy bullets if they exist
-            if (gameState.enemyBullets) {
-                gameState.enemyBullets.forEach(bullet => {
-                    // Different bullet appearances based on enemy type
-                    if (bullet.fromElite) {
-                        drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
-                                'rgba(255, 215, 0, 0.3)');
+                // Draw shadow/glow
+                if (!reducedEffects) {
+                    if (enemy.type === 'BOSS') {
+                        // Bigger, more impressive glow for boss
+                        // If hit flash is active, use white glow
+                        const glowColor = enemy.hitFlash > 0 ? '#FFFFFF' : COLORS.ENEMY.BOSS.GLOW;
+                        drawGlow(enemy.x, enemy.y, enemy.size * 1.8, glowColor);
                         
-                        ctx.beginPath();
-                        ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
-                        ctx.fillStyle = '#FFD700';
-                        ctx.fill();
-                    } else if (bullet.fromShooter) {
-                        drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
-                                'rgba(147, 112, 219, 0.3)');
-                        
-                        ctx.beginPath();
-                        ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
-                        ctx.fillStyle = '#9370DB';
-                        ctx.fill();
+                        // Draw shield if active
+                        if (enemy.shield > 0) {
+                            ctx.beginPath();
+                            ctx.arc(enemy.x, enemy.y, enemy.size * 1.3, 0, Math.PI * 2);
+                            ctx.strokeStyle = `rgba(0, 255, 255, ${enemy.shield / 100})`;
+                            ctx.lineWidth = 5;
+                            ctx.stroke();
+                        }
                     } else {
-                        drawGlow(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE * 2, 
-                                'rgba(255, 0, 0, 0.3)');
+                        // Normal enemy glow
+                        const colorSet = COLORS.ENEMY[enemy.type] || COLORS.ENEMY.NORMAL;
+                        drawGlow(enemy.x, enemy.y, enemy.size * 1.5, colorSet.GLOW);
                         
-                        ctx.beginPath();
-                        ctx.arc(bullet.x, bullet.y, CONSTANTS.BULLET.SIZE/2, 0, Math.PI * 2);
-                        ctx.fillStyle = '#FF4040';
-                        ctx.fill();
+                        // Draw elite shield if applicable
+                        if (enemy.type === 'ELITE' && enemy.shield > 0) {
+                            ctx.beginPath();
+                            ctx.arc(enemy.x, enemy.y, enemy.size * 1.2, 0, Math.PI * 2);
+                            ctx.strokeStyle = `rgba(255, 215, 0, ${enemy.shield / 100})`;
+                            ctx.lineWidth = 3;
+                            ctx.stroke();
+                        }
                     }
-                });
-            }
-            }
+                }
+                
+                // Draw enemy
+                ctx.beginPath();
+                
+                if (enemy.type === 'BOSS') {
+                    // Draw a more complex boss shape
+                    // Main body - flash white when hit
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+                    ctx.fillStyle = enemy.hitFlash > 0 ? '#FFFFFF' : COLORS.ENEMY.BOSS.CORE;
+                    ctx.fill();
+                    
+                    // Additional details
+                    const innerSize = enemy.size * 0.6;
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, innerSize, 0, Math.PI * 2);
+                    ctx.fillStyle = COLORS.ENEMY.BOSS.GLOW;
+                    ctx.fill();
+                    
+                    // "Eye" in the center
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.size * 0.3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fill();
+                    
+                    // Boss "wings"
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x - enemy.size, enemy.y);
+                    ctx.lineTo(enemy.x - enemy.size * 1.5, enemy.y - enemy.size * 0.5);
+                    ctx.lineTo(enemy.x - enemy.size * 1.5, enemy.y + enemy.size * 0.5);
+                    ctx.closePath();
+                    ctx.fillStyle = COLORS.ENEMY.BOSS.CORE;
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.x + enemy.size, enemy.y);
+                    ctx.lineTo(enemy.x + enemy.size * 1.5, enemy.y - enemy.size * 0.5);
+                    ctx.lineTo(enemy.x + enemy.size * 1.5, enemy.y + enemy.size * 0.5);
+                    ctx.closePath();
+                    ctx.fillStyle = COLORS.ENEMY.BOSS.CORE;
+                    ctx.fill();
+                } else {
+                    // Draw normal enemy
+                    ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+                    const colorSet = COLORS.ENEMY[enemy.type] || COLORS.ENEMY.NORMAL;
+                    ctx.fillStyle = colorSet.CORE;
+                    ctx.fill();
+                }
+                
+                // Draw health bar for all enemies
+                const healthBarWidth = enemy.size * 2;
+                const healthBarHeight = 6;
+                const healthPercentage = enemy.health / enemy.maxHealth;
+                
+                ctx.fillStyle = '#333';
+                ctx.fillRect(enemy.x - healthBarWidth / 2, enemy.y - enemy.size - 15, healthBarWidth, healthBarHeight);
+                
+                // Health bar color based on health percentage
+                let healthColor;
+                if (healthPercentage > 0.6) healthColor = '#00FF00';
+                else if (healthPercentage > 0.3) healthColor = '#FFFF00';
+                else healthColor = '#FF0000';
+                
+                ctx.fillStyle = healthColor;
+                ctx.fillRect(
+                    enemy.x - healthBarWidth / 2,
+                    enemy.y - enemy.size - 15,
+                    healthBarWidth * healthPercentage,
+                    healthBarHeight
+                );
+                
+                // For boss, add a label and more detailed health bar
+                if (enemy.type === 'BOSS') {
+                    ctx.font = '14px Arial';
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('BOSS', enemy.x, enemy.y - enemy.size - 25);
+                    
+                    // Phase indicator
+                    ctx.font = '12px Arial';
+                    ctx.fillStyle = enemy.phase === 1 ? '#AAAAFF' : '#FF00FF';
+                    ctx.fillText(`Phase ${enemy.phase}`, enemy.x, enemy.y - enemy.size - 5);
+                }
+                
+                ctx.restore();
+            });
+        }
 
         function drawUI() {
             const margin = 20;
@@ -2527,6 +2951,10 @@
             drawEndScreen('Game Over', 'red');
         }
 
+        function drawGameWon() {
+            drawEndScreen('Victory!', 'gold');
+        }
+
         function drawVictory() {
             drawEndScreen('Victory!', 'gold');
         }
@@ -2555,11 +2983,27 @@
         let lastTime = 0;
         let frameCount = 0;
         let fpsTimer = 0;
-        let gamePaused = true;
+        let gamePaused = false; // Changed to false so the game starts immediately
         let reducedEffects = false;
         
+        function detectStuckKeys() {
+            // Check for stuck keys that might be causing issues
+            const now = Date.now();
+            
+            // Check if any key has been held down for too long (more than 3 seconds)
+            if (gameState.lastKeyPress) {
+                for (const key in gameState.lastKeyPress) {
+                    if (gameState.keys[key] && now - gameState.lastKeyPress[key] > 3000) {
+                        // Reset this potentially stuck key
+                        gameState.keys[key] = false;
+                        delete gameState.lastKeyPress[key];
+                    }
+                }
+            }
+        }
+
         function gameLoop(timestamp) {
-            // Calculate time since last frame
+            // Calculate delta time for smooth animations
             if (!lastTime) lastTime = timestamp;
             const deltaTime = timestamp - lastTime;
             lastTime = timestamp;
@@ -2581,9 +3025,6 @@
                 // Reset FPS counter
                 frameCount = 0;
                 fpsTimer = 0;
-                
-                // Periodically clear any potentially stuck keys
-                checkForStuckKeys();
             }
             
             // Skip frame if running too slow (prevents spiral of death)
@@ -2592,12 +3033,32 @@
                 return;
             }
             
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
             // Process game logic and render
             try {
-                if (!gameState.gameOver && !gameState.gameWon && !gamePaused) {
+                if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
                     updateGame();
                 }
-                draw();
+                
+                // Draw everything
+                drawBackground();
+                drawObstacles();
+                drawEnemies();
+                drawPowerUps();
+                drawBullets();
+                drawEnemyBullets();
+                drawPlayer();
+                drawParticles();
+                drawUI();
+                
+                // Draw game state messages
+                if (gameState.gameOver) {
+                    drawGameOver();
+                } else if (gameState.gameWon) {
+                    drawGameWon();
+                }
                 
                 // Draw the menu when game is not started
                 if (!gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
@@ -2608,20 +3069,24 @@
             } catch (error) {
                 // Error recovery - likely game state corruption
                 console.error("Game error:", error);
-                gamePaused = true;
-                resetKeyboardState(); // Clear keyboard state on error
+                
                 // Show recovery UI
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = 'red';
                 ctx.font = '24px "Segoe UI"';
                 ctx.textAlign = 'center';
-                ctx.fillText('Game Error Detected', canvas.width/2, canvas.height/2 - 40);
+                ctx.fillText('Game Error Detected: ' + error.message, canvas.width/2, canvas.height/2 - 40);
                 ctx.fillStyle = 'white';
                 ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2);
                 ctx.textAlign = 'left';
+                
+                // Reset game state on error
+                gamePaused = true;
+                resetKeyboardState();
             }
             
+            // Loop
             requestAnimationFrame(gameLoop);
         }
         
@@ -2663,6 +3128,137 @@
 
         // Start the game with the optimized loop
         requestAnimationFrame(gameLoop);
+
+        function updateEnemyBullets() {
+            // Update enemy bullets
+            gameState.enemyBullets = gameState.enemyBullets.filter(bullet => {
+                // Move bullet
+                bullet.x += bullet.dx;
+                bullet.y += bullet.dy;
+                
+                // Reduce lifetime
+                bullet.lifetime--;
+                
+                // Remove if lifetime is over
+                if (bullet.lifetime <= 0) {
+                    return false;
+                }
+                
+                // Define bullet size based on source
+                const bulletSize = bullet.fromBoss ? (bullet.size || 12) : 8;
+                
+                // Check collision with player
+                const dx = gameState.player.x - bullet.x;
+                const dy = gameState.player.y - bullet.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5) {
+                    // If shield is active, reduce shield instead of health
+                    if (gameState.player.shield > 0) {
+                        gameState.player.shield -= bullet.fromBoss ? 20 : 10;
+                        if (gameState.player.shield < 0) gameState.player.shield = 0;
+                    } else {
+                        // Bullets from boss deal more damage
+                        const damage = bullet.fromBoss ? 15 : 8;
+                        gameState.player.health -= damage;
+                        
+                        // Check for game over
+                        if (gameState.player.health <= 0) {
+                            gameState.gameOver = true;
+                        }
+                    }
+                    
+                    // Create hit effect
+                    for (let i = 0; i < 8; i++) {
+                        gameState.particles.push(createParticle(
+                            bullet.x, bullet.y,
+                            bullet.fromBoss ? COLORS.ENEMY.BOSS.CORE : '#FF4040',
+                            2, 3, 15,
+                            true
+                        ));
+                    }
+                    
+                    return false;
+                }
+                
+                // Keep bullet
+                return true;
+            });
+        }
+
+        function drawEnemyBullets() {
+            gameState.enemyBullets.forEach(bullet => {
+                ctx.save();
+                
+                // Draw glow
+                if (!reducedEffects) {
+                    drawGlow(
+                        bullet.x, bullet.y, 
+                        bullet.fromBoss ? (bullet.size || 12) * 1.5 : 12, 
+                        bullet.fromBoss ? COLORS.ENEMY.BOSS.GLOW : '#8B0000'
+                    );
+                }
+                
+                // Draw bullet
+                ctx.beginPath();
+                ctx.arc(
+                    bullet.x, bullet.y, 
+                    bullet.fromBoss ? (bullet.size || 12) : 8, 
+                    0, Math.PI * 2
+                );
+                ctx.fillStyle = bullet.fromBoss ? COLORS.ENEMY.BOSS.CORE : '#FF4040';
+                ctx.fill();
+                
+                ctx.restore();
+            });
+        }
+
+        function drawBackground() {
+            // Fill the background
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw stars
+            stars.forEach(star => {
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + star.size * 0.3})`;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            // Special background effects during boss fight
+            if (gameState.isBossFight) {
+                // Subtle pulsing background
+                const alpha = 0.05 + Math.sin(Date.now() / 1000) * 0.02;
+                ctx.fillStyle = `rgba(128, 0, 128, ${alpha})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Add some ambient particles
+                if (Math.random() < 0.1) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    gameState.particles.push(createParticle(
+                        x, y,
+                        COLORS.ENEMY.BOSS.CORE,
+                        0.5, 2, 60,
+                        true
+                    ));
+                }
+            }
+        }
+
+        function updateStars() {
+            // Update star positions to create parallax scrolling effect
+            stars.forEach(star => {
+                star.y += star.speed;
+                
+                // Wrap stars around when they go off screen
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+            });
+        }
     </script>
 </body>
 </html> 
