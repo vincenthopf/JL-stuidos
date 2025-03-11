@@ -271,6 +271,7 @@
                 powerUps: [],
                 shield: 0,
                 multiShot: false,
+                stuckCounter: 0, // Add stuckCounter to prevent undefined errors
                 level: {
                     damage: 1,
                     speed: 1,
@@ -320,6 +321,141 @@
             size: Math.random() * 2,
             speed: 0.1 + Math.random() * 0.5
         }));
+
+        // Create a robust keyboard controller to handle key states
+        const KeyboardController = {
+            // Internal state
+            _keys: {},
+            _timestamps: {},
+            _movementKeys: ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'],
+            _secretCodeBuffer: [],
+            _secretCodeTimeout: null,
+            
+            // Initialize controller
+            init() {
+                // Set up event listeners
+                document.addEventListener('keydown', this.handleKeyDown.bind(this));
+                document.addEventListener('keyup', this.handleKeyUp.bind(this));
+                window.addEventListener('blur', this.handleBlur.bind(this));
+                
+                // Set up timer to check for stuck keys (every 3 seconds)
+                setInterval(() => {
+                    this.checkStuckKeys();
+                }, 3000);
+            },
+            
+            // Handle key down events
+            handleKeyDown(e) {
+                const key = e.key.toLowerCase();
+                this._keys[key] = true;
+                this._timestamps[key] = Date.now();
+                
+                // Secret code sequence tracking (Shift+P+/)
+                if (this._secretCodeTimeout) {
+                    clearTimeout(this._secretCodeTimeout);
+                }
+                
+                // Add key to sequence buffer
+                if (e.shiftKey && key === 'p') {
+                    this._secretCodeBuffer.push('shift+p');
+                } else if (key === '/') {
+                    this._secretCodeBuffer.push('/');
+                }
+                
+                // Check for the full sequence
+                if (this._secretCodeBuffer.length >= 2 && 
+                    this._secretCodeBuffer.includes('shift+p') && 
+                    this._secretCodeBuffer.includes('/')) {
+                    // Show wave selection menu and pause game
+                    gameState.gameStarted = false;
+                    gamePaused = true;
+                    document.getElementById('waveSelectMenu').style.display = 'flex';
+                    initWaveSelectionMenu();
+                    this._secretCodeBuffer = []; // Clear buffer after activation
+                    return;
+                }
+                
+                // Set timeout to clear buffer after 1 second
+                this._secretCodeTimeout = setTimeout(() => {
+                    this._secretCodeBuffer = [];
+                }, 1000);
+                
+                // Restart game on 'r' key when game is over
+                if (key === 'r' && (gameState.gameOver || gameState.gameWon)) {
+                    restartGame();
+                }
+                
+                // Dash on space key
+                if (key === ' ' && gameState.player.dashCooldown <= 0 && gameState.player.energy >= 30) {
+                    dash();
+                }
+            },
+            
+            // Handle key up events
+            handleKeyUp(e) {
+                const key = e.key.toLowerCase();
+                this._keys[key] = false;
+                delete this._timestamps[key];
+            },
+            
+            // Handle window blur (tab change, etc.)
+            handleBlur() {
+                // Clear all key states when window loses focus
+                this._keys = {};
+                this._timestamps = {};
+            },
+            
+            // Check for stuck keys
+            checkStuckKeys() {
+                const now = Date.now();
+                for (const key in this._timestamps) {
+                    // If key has been pressed for more than 2 seconds
+                    if (now - this._timestamps[key] > 2000) {
+                        // Only reset non-movement keys if they're stuck
+                        if (!this._movementKeys.includes(key)) {
+                            this._keys[key] = false;
+                            delete this._timestamps[key];
+                        }
+                    }
+                }
+            },
+            
+            // Reset all keys
+            resetAllKeys() {
+                this._keys = {};
+                this._timestamps = {};
+            },
+            
+            // Get current state of a key
+            isKeyDown(key) {
+                return !!this._keys[key.toLowerCase()];
+            },
+            
+            // Update the gameState keys to match the controller
+            updateGameState(gameState) {
+                // Keep existing keys as is, only update with new ones
+                if (!gameState.keys) {
+                    gameState.keys = {};
+                }
+                
+                // Copy all key states to gameState
+                for (const key in this._keys) {
+                    gameState.keys[key] = this._keys[key];
+                }
+                
+                // For backward compatibility, update lastKeyPress
+                if (!gameState.lastKeyPress) {
+                    gameState.lastKeyPress = {};
+                }
+                
+                for (const key in this._timestamps) {
+                    gameState.lastKeyPress[key] = this._timestamps[key];
+                }
+            }
+        };
+        
+        // Initialize the keyboard controller
+        KeyboardController.init();
 
         // Initialize wave selection menu
         function initWaveSelectionMenu() {
@@ -408,78 +544,6 @@
             document.getElementById('waveSelectMenu').style.display = 'none';
         });
 
-        // Event listeners
-        document.addEventListener('keydown', (e) => {
-            // Store the key in lowercase to make comparisons case-insensitive
-            const key = e.key.toLowerCase();
-            
-            // Set the key state to true
-            gameState.keys[key] = true;
-            
-            // Track the last time this key was pressed (for detecting stuck keys)
-            gameState.lastKeyPress = gameState.lastKeyPress || {};
-            gameState.lastKeyPress[key] = Date.now();
-            
-            // Secret code sequence tracking (Shift+P+/)
-            if (secretCodeTimeout) {
-                clearTimeout(secretCodeTimeout);
-            }
-            
-            // Add key to sequence buffer
-            if (e.shiftKey && key === 'p') {
-                secretCodeBuffer.push('shift+p');
-            } else if (key === '/') {
-                secretCodeBuffer.push('/');
-            }
-            
-            // Check for the full sequence
-            if (secretCodeBuffer.length >= 2 && 
-                secretCodeBuffer.includes('shift+p') && 
-                secretCodeBuffer.includes('/')) {
-                // Show wave selection menu and pause game
-                gameState.gameStarted = false;
-                gamePaused = true;
-                document.getElementById('waveSelectMenu').style.display = 'flex';
-                initWaveSelectionMenu();
-                secretCodeBuffer = []; // Clear buffer after activation
-                return;
-            }
-            
-            // Set timeout to clear buffer after 1 second
-            secretCodeTimeout = setTimeout(() => {
-                secretCodeBuffer = [];
-            }, 1000);
-            
-            // Restart game on 'r' key when game is over
-            if (key === 'r' && (gameState.gameOver || gameState.gameWon)) {
-                restartGame();
-            }
-            
-            // Dash on space key
-            if (key === ' ' && gameState.player.dashCooldown <= 0 && gameState.player.energy >= 30) {
-                dash();
-            }
-        });
-        
-        document.addEventListener('keyup', (e) => {
-            // Store the key in lowercase to make comparisons case-insensitive
-            const key = e.key.toLowerCase();
-            
-            // Set the key state to false
-            gameState.keys[key] = false;
-            
-            // Clear last key press time
-            if (gameState.lastKeyPress && gameState.lastKeyPress[key]) {
-                delete gameState.lastKeyPress[key];
-            }
-        });
-        
-        // Focus event handlers to prevent stuck keys when window loses focus
-        window.addEventListener('blur', () => {
-            // Clear all key states when window loses focus
-            gameState.keys = {};
-        });
-
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             gameState.mousePos.x = e.clientX - rect.left;
@@ -551,18 +615,13 @@
         function updatePlayer() {
             const player = gameState.player;
             
-            // Check for stuck keys (pressed more than 5 seconds ago)
-            if (gameState.lastKeyPress) {
-                const now = Date.now();
-                for (const key in gameState.lastKeyPress) {
-                    if (now - gameState.lastKeyPress[key] > 5000) {
-                        // Clear stuck key
-                        gameState.keys[key] = false;
-                        delete gameState.lastKeyPress[key];
-                    }
-                }
-            }
-
+            // Store previous position to detect if player is actually moving
+            const prevX = player.x;
+            const prevY = player.y;
+            
+            // Sync keyboard controller state with gameState for compatibility
+            KeyboardController.updateGameState(gameState);
+            
             // Decrement cooldowns
             if (player.dashCooldown > 0) player.dashCooldown--;
             
@@ -580,11 +639,11 @@
             // Movement with improved handling
             let moveX = 0, moveY = 0;
             
-            // Check for WASD or arrow keys
-            if (gameState.keys['w'] || gameState.keys['arrowup']) moveY -= 1;
-            if (gameState.keys['s'] || gameState.keys['arrowdown']) moveY += 1;
-            if (gameState.keys['a'] || gameState.keys['arrowleft']) moveX -= 1;
-            if (gameState.keys['d'] || gameState.keys['arrowright']) moveX += 1;
+            // Check for WASD or arrow keys using the controller
+            if (KeyboardController.isKeyDown('w') || KeyboardController.isKeyDown('arrowup')) moveY -= 1;
+            if (KeyboardController.isKeyDown('s') || KeyboardController.isKeyDown('arrowdown')) moveY += 1;
+            if (KeyboardController.isKeyDown('a') || KeyboardController.isKeyDown('arrowleft')) moveX -= 1;
+            if (KeyboardController.isKeyDown('d') || KeyboardController.isKeyDown('arrowright')) moveX += 1;
             
             // Normalize diagonal movement to prevent faster diagonal speed
             if (moveX !== 0 && moveY !== 0) {
@@ -614,6 +673,9 @@
             // Trail
             player.trail.push({x: player.x, y: player.y});
             if (player.trail.length > 10) player.trail.shift();
+
+            // We've removed the trail checking here entirely - let checkForStuckKeys handle this
+            // in a much less aggressive way
 
             // Shooting
             if (gameState.mouseDown && player.shootCooldown <= 0 && player.energy >= CONSTANTS.PLAYER.SHOOT_COST) {
@@ -1764,10 +1826,10 @@
                     ));
                 }
                 
-                // Increase score and enemy count
+                // Only increase score, but don't count as defeated enemy
                 gameState.player.score += 10;
-                gameState.enemiesDefeated++;
-                checkWaveComplete();
+                // Removed: gameState.enemiesDefeated++;
+                // checkWaveComplete() is called elsewhere when enemies are defeated properly
                 
                 return true; // Destroy normal enemy on collision
             }
@@ -1837,6 +1899,7 @@
                             if (enemy.type === 'ELITE') scoreValue = 50;
                             
                             gameState.player.score += scoreValue;
+                            // Restore for bullet collisions
                             gameState.enemiesDefeated++;
                             
                             // Check if wave is complete
@@ -2050,10 +2113,10 @@
             let dx = 0, dy = 0;
             
             // Check for WASD or arrow keys
-            if (gameState.keys['w'] || gameState.keys['arrowup']) dy = -1;
-            if (gameState.keys['s'] || gameState.keys['arrowdown']) dy = 1;
-            if (gameState.keys['a'] || gameState.keys['arrowleft']) dx = -1;
-            if (gameState.keys['d'] || gameState.keys['arrowright']) dx = 1;
+            if (KeyboardController.isKeyDown('w') || KeyboardController.isKeyDown('arrowup')) dy = -1;
+            if (KeyboardController.isKeyDown('s') || KeyboardController.isKeyDown('arrowdown')) dy = 1;
+            if (KeyboardController.isKeyDown('a') || KeyboardController.isKeyDown('arrowleft')) dx = -1;
+            if (KeyboardController.isKeyDown('d') || KeyboardController.isKeyDown('arrowright')) dx = 1;
             
             // Normalize if moving diagonally
             if (dx !== 0 && dy !== 0) {
@@ -2064,15 +2127,16 @@
             
             // If no direction keys pressed, dash toward mouse
             if (dx === 0 && dy === 0) {
-                const angle = Math.atan2(
-                    gameState.mousePos.y - player.y,
-                    gameState.mousePos.x - player.x
-                );
-                dx = Math.cos(angle);
-                dy = Math.sin(angle);
+                const dirX = gameState.mousePos.x - player.x;
+                const dirY = gameState.mousePos.y - player.y;
+                
+                // Normalize
+                const len = Math.sqrt(dirX * dirX + dirY * dirY);
+                dx = dirX / len;
+                dy = dirY / len;
             }
             
-            // Apply dash
+            // Apply dash movement and effects
             player.x += dx * CONSTANTS.PLAYER.DASH_DISTANCE;
             player.y += dy * CONSTANTS.PLAYER.DASH_DISTANCE;
             
@@ -2080,16 +2144,16 @@
             player.x = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.width - CONSTANTS.PLAYER.BASE_SIZE, player.x));
             player.y = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.height - CONSTANTS.PLAYER.BASE_SIZE, player.y));
             
-            // Set cooldown and energy cost
+            // Set cooldown and consume energy
             player.dashCooldown = CONSTANTS.PLAYER.DASH_COOLDOWN;
             player.energy -= 30;
             
-            // Create dash effect
+            // Dash effect
             for (let i = 0; i < 15; i++) {
                 gameState.particles.push(createParticle(
                     player.x, player.y,
-                    COLORS.PLAYER.CORE,
-                    3, 4, 20,
+                    COLORS.PLAYER.TRAIL,
+                    3, 3, 30,
                     true
                 ));
             }
@@ -2234,6 +2298,9 @@
         }
         
         function restartGame() {
+            // Reset keyboard first to ensure clean state
+            resetKeyboardState();
+            
             // Reset game state
             gameState = {
                 player: {
@@ -2279,7 +2346,17 @@
                 gameStarted: true,
                 lastKeyPress: {},
                 isBossFight: false,
-                bossDefeated: false
+                bossDefeated: false,
+                // Add the new gameState properties
+                healthRestoredTime: 0,
+                activePowerUps: {
+                    shield: { active: false, remaining: 0, total: 0 },
+                    multiShot: { active: false, remaining: 0, total: 5000 },
+                    speedBoost: { active: false, remaining: 0, total: 7000 },
+                    rapidFire: { active: false, remaining: 0, total: 6000 },
+                    timeWarp: { active: false, remaining: 0, total: 5000 }
+                },
+                floatingTexts: []
             };
             
             // Reset error state
@@ -2301,6 +2378,7 @@
         function resetKeyboardState() {
             gameState.keys = {};
             gameState.lastKeyPress = {};
+            KeyboardController.resetAllKeys();
         }
 
         function explodeBomber(bomber) {
@@ -3327,9 +3405,15 @@
             // Check for stuck keys that might be causing issues
             const now = Date.now();
             
+            // List of movement keys to exclude
+            const movementKeys = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+            
             // Check if any key has been held down for too long (more than 3 seconds)
             if (gameState.lastKeyPress) {
                 for (const key in gameState.lastKeyPress) {
+                    // Skip movement keys - we want to allow holding them down
+                    if (movementKeys.includes(key.toLowerCase())) continue;
+                    
                     if (gameState.keys[key] && now - gameState.lastKeyPress[key] > 3000) {
                         // Reset this potentially stuck key
                         gameState.keys[key] = false;
@@ -3372,6 +3456,12 @@
             
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Check for stuck keys much less frequently
+            if (Math.random() < 0.01) { // Only check 1% of frames
+                detectStuckKeys();
+                checkForStuckKeys();
+            }
             
             // Process game logic and render
             try {
@@ -3440,26 +3530,36 @@
 
         // Check for stuck keys
         function checkForStuckKeys() {
-            // Check if player hasn't moved in 3 seconds despite keys being pressed
-            const now = Date.now();
+            // Only check every few frames - not every single time
+            if (Math.random() > 0.1) return; // Only check 10% of the time
+            
             let movementKeysPressed = false;
             
-            if (gameState.keys['w'] || gameState.keys['arrowup'] || 
-                gameState.keys['s'] || gameState.keys['arrowdown'] ||
-                gameState.keys['a'] || gameState.keys['arrowleft'] ||
-                gameState.keys['d'] || gameState.keys['arrowright']) {
+            if (KeyboardController.isKeyDown('w') || KeyboardController.isKeyDown('arrowup') || 
+                KeyboardController.isKeyDown('s') || KeyboardController.isKeyDown('arrowdown') ||
+                KeyboardController.isKeyDown('a') || KeyboardController.isKeyDown('arrowleft') ||
+                KeyboardController.isKeyDown('d') || KeyboardController.isKeyDown('arrowright')) {
                 movementKeysPressed = true;
             }
             
-            // If movement keys are pressed but player position hasn't changed, reset keys
-            if (movementKeysPressed && gameState.player.trail.length > 0) {
-                const lastPos = gameState.player.trail[gameState.player.trail.length - 1];
-                const secondLastPos = gameState.player.trail.length > 1 ? 
-                    gameState.player.trail[gameState.player.trail.length - 2] : lastPos;
-                    
-                if (lastPos.x === secondLastPos.x && lastPos.y === secondLastPos.y) {
-                    // Player isn't moving despite keys being pressed - reset keyboard state
-                    resetKeyboardState();
+            // Only check for genuinely stuck keys (not held keys)
+            if (movementKeysPressed && gameState.player.trail.length >= 10) {
+                // Check if player hasn't moved AT ALL for many frames (at least 10)
+                const positions = gameState.player.trail.slice(-10);
+                let allSame = true;
+                
+                for (let i = 1; i < positions.length; i++) {
+                    if (positions[i].x !== positions[0].x || positions[i].y !== positions[0].y) {
+                        allSame = false;
+                        break;
+                    }
+                }
+                
+                // Only reset if absolutely stuck (all 10 positions identical)
+                if (allSame) {
+                    // Player is completely stuck
+                    console.log("Detected completely stuck keys - resetting");
+                    KeyboardController.resetAllKeys();
                 }
             }
         }
