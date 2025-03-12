@@ -174,7 +174,7 @@
                 SIZE: 20,
                 SPAWN_CHANCE: 0.01,  // Increased from 0.003 to 0.01 for more frequent power-up spawns
                 DURATION: 300,
-                MAX_COUNT: 5  // Maximum number of power-ups allowed at once
+                MAX_COUNT: 3  // Maximum number of power-ups allowed at once
             },
             OBSTACLES: {
                 SIZE: 200,  // Length of the wall
@@ -935,11 +935,11 @@
                 if (dist < CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5) {
                     // If shield is active, reduce shield instead of health
                     if (gameState.player.shield > 0) {
-                        gameState.player.shield -= bullet.fromBoss ? 20 : 10;
+                        gameState.player.shield -= bullet.fromBoss ? 30 : 15;
                         if (gameState.player.shield < 0) gameState.player.shield = 0;
                     } else {
                         // Bullets from boss deal more damage
-                        const damage = bullet.fromBoss ? 15 : 8;
+                        const damage = bullet.fromBoss ? 30 : 15; // Increased: boss bullets 30 (was 20), normal bullets 15 (was 10)
                         gameState.player.health -= damage;
                         
                         // Check for game over
@@ -1729,20 +1729,21 @@
             if (dist < CONSTANTS.PLAYER.BASE_SIZE + enemy.size * 0.5) {
                 // If shield is active, reduce shield instead of health
                 if (gameState.player.shield > 0) {
-                    gameState.player.shield -= 50;
+                    gameState.player.shield -= 75; // Increased from 50 to be more impactful
                     if (gameState.player.shield < 0) gameState.player.shield = 0;
                 } else {
                     // Different damage based on enemy type
-                    let damage = 10;
-                    if (enemy.type === 'FAST') damage = 7;
-                    if (enemy.type === 'TANK') damage = 15;
-                    if (enemy.type === 'SHOOTER') damage = 8;
-                    if (enemy.type === 'BOMBER') damage = 12;
-                    if (enemy.type === 'ELITE') damage = 14;
-                    if (enemy.type === 'BOSS') damage = 25;
+                    let damage = 15; // Normal enemy damage (increased from 10)
+                    if (enemy.type === 'FAST') damage = 15; // Fast enemy (increased from 10)
+                    if (enemy.type === 'TANK') damage = 40; // Tank enemy (increased from 30)
+                    if (enemy.type === 'SHOOTER') damage = 25; // Shooter enemy (increased from 20)
+                    if (enemy.type === 'BOMBER') damage = 35; // Bomber enemy (increased from 25)
+                    if (enemy.type === 'ELITE') damage = 35; // Elite enemy (increased from 25)
+                    if (enemy.type === 'BOSS') damage = 50; // Boss enemy (increased from 35)
+                
                     
                     // Reduce damage for early waves
-                    if (gameState.currentWave <= 3) {
+                    if (gameState.currentWave <= 2) {
                         damage = Math.round(damage * 0.7);
                     }
                     
@@ -2405,11 +2406,11 @@
             if (dist < explosionRadius + CONSTANTS.PLAYER.BASE_SIZE) {
                 // Calculate damage based on distance from center (more damage closer to center)
                 const damageFactor = 1 - (dist / (explosionRadius + CONSTANTS.PLAYER.BASE_SIZE));
-                const damage = Math.round(40 * damageFactor); // Increased from 30 to 40
+                const damage = Math.round(60 * damageFactor); // Increased from 40 to 60 for more impact
                 
                 // If shield is active, reduce shield instead of health
                 if (gameState.player.shield > 0) {
-                    gameState.player.shield -= damage * 2;
+                    gameState.player.shield -= damage * 2.5; // Increased shield damage multiplier
                     if (gameState.player.shield < 0) gameState.player.shield = 0;
                 } else {
                     gameState.player.health -= damage;
@@ -3593,11 +3594,11 @@
                 if (dist < CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5) {
                     // If shield is active, reduce shield instead of health
                     if (gameState.player.shield > 0) {
-                        gameState.player.shield -= bullet.fromBoss ? 20 : 10;
+                        gameState.player.shield -= bullet.fromBoss ? 30 : 15;
                         if (gameState.player.shield < 0) gameState.player.shield = 0;
                     } else {
                         // Bullets from boss deal more damage
-                        const damage = bullet.fromBoss ? 15 : 8;
+                        const damage = bullet.fromBoss ? 30 : 15; // Increased: boss bullets 30 (was 20), normal bullets 15 (was 10)
                         gameState.player.health -= damage;
                         
                         // Check for game over
