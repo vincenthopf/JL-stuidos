@@ -304,6 +304,10 @@
             lastKeyPress: {},
             isBossFight: false,
             bossDefeated: false,
+            healthRestoredTime: 0,
+            floatingTexts: [],
+            timeWarpActive: false,
+            justDefeatedBoss: false, // Flag to prevent double wave increment
             // Track power-up durations
             activePowerUps: {
                 shield: { active: false, remaining: 0, total: 0 },
@@ -312,7 +316,6 @@
                 rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
                 timeWarp: { active: false, remaining: 0, total: 5000 }
             },
-            floatingTexts: [] // Array to store floating text objects
         };
 
         // Secret code sequence tracking
@@ -2234,7 +2237,10 @@
                             // Boss was defeated, proceed to next wave
                             gameState.isBossFight = false;
                             gameState.bossDefeated = false;
-                            gameState.currentWave++; // Increment wave counter after boss defeat
+                            
+                            // We'll increment the wave counter in startNextWave, so set a flag
+                            gameState.justDefeatedBoss = true;
+                            
                             gameState.enemiesDefeated = 0; // Reset enemy counter for the next wave
                             
                             // Reset enemy spawning parameters to ensure enemies will spawn in next wave
@@ -2259,7 +2265,10 @@
                 setTimeout(() => {
                     gameState.isBossFight = false;
                     gameState.bossDefeated = false;
-                    gameState.currentWave++; // Increment wave counter after boss defeat
+                    
+                    // We'll increment the wave counter in startNextWave, so set a flag
+                    gameState.justDefeatedBoss = true;
+                    
                     gameState.enemiesDefeated = 0; // Reset enemy counter for the next wave
                     gameState.waveComplete = false; // Reset wave complete flag
                     
@@ -2331,11 +2340,12 @@
         }
         
         function startNextWave() {
-            // Only increment wave if not coming from boss defeat
-            // (since we already incremented in the boss defeat case)
-            if (!gameState.bossDefeated) {
-                gameState.currentWave++;
-            }
+            // Increment wave if it's not coming from a boss defeat
+            // (Since we now use a flag instead of doing it in two places)
+            gameState.currentWave++;
+            
+            // Clear the flag for next time
+            gameState.justDefeatedBoss = false;
             
             gameState.enemiesDefeated = 0;
             gameState.waveComplete = false;
@@ -2402,8 +2412,10 @@
                 lastKeyPress: {},
                 isBossFight: false,
                 bossDefeated: false,
-                // Add the new gameState properties
                 healthRestoredTime: 0,
+                floatingTexts: [],
+                timeWarpActive: false,
+                justDefeatedBoss: false, // Flag to prevent double wave increment
                 activePowerUps: {
                     shield: { active: false, remaining: 0, total: 0 },
                     multiShot: { active: false, remaining: 0, total: 5000 },
@@ -2411,7 +2423,6 @@
                     rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
                     timeWarp: { active: false, remaining: 0, total: 5000 }
                 },
-                floatingTexts: []
             };
             
             // Reset error state
