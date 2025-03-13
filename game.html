@@ -161,6 +161,7 @@
                 BASE_ENERGY: 100,
                 ENERGY_REGEN: 0.4,
                 SHOOT_COOLDOWN: 45,
+                RAPID_FIRE_COOLDOWN: 5, // No longer used - kept for compatibility
                 SHOOT_COST: 20,
                 DASH_COOLDOWN: 30,
                 DASH_DISTANCE: 100
@@ -200,7 +201,7 @@
                 GLOW: '#FFA500'
             },
             POWER_UPS: {
-                RAPID_FIRE: '#00FF7F',
+                RAPID_FIRE: '#00FF7F', // Changed back to original green color
                 SHIELD: '#1E90FF',
                 MULTI_SHOT: '#FF4500',
                 SPEED_BOOST: '#FFFF00', 
@@ -275,7 +276,7 @@
                 speedBoostActive: false,
                 timeWarpActive: false,
                 stuckCounter: 0, // Add stuckCounter to prevent undefined errors
-                velocity: { x: 0, y: 0 }, // Add velocity for spider leg animation
+                velocity: { x: 0, y: 0 }, // Restored velocity property
                 level: {
                     damage: 1,
                     speed: 1,
@@ -308,7 +309,7 @@
                 shield: { active: false, remaining: 0, total: 0 },
                 multiShot: { active: false, remaining: 0, total: 5000 },
                 speedBoost: { active: false, remaining: 0, total: 7000 },
-                rapidFire: { active: false, remaining: 0, total: 6000 },
+                rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
                 timeWarp: { active: false, remaining: 0, total: 5000 }
             },
             floatingTexts: [] // Array to store floating text objects
@@ -634,10 +635,9 @@
                 gameState.healthRestoredTime--;
             }
             
-            // Apply rapid fire effect to shoot cooldown if active
+            // Simple cooldown decrease - rapid fire effect now handled in shooting function
             if (player.shootCooldown > 0) {
-                const cooldownRate = player.rapidFire ? 3 : 1; // Rapid fire reduces cooldown 3x faster
-                player.shootCooldown -= cooldownRate;
+                player.shootCooldown--;
             }
 
             // Movement with improved handling
@@ -675,10 +675,13 @@
             // Rest of updatePlayer function...
             // ...
 
-            // Update cooldowns
+            // Update cooldowns - only decrement dashCooldown here
             if (player.dashCooldown > 0) player.dashCooldown--;
-            if (player.shootCooldown > 0) player.shootCooldown--;
-            player.energy = Math.min(player.maxEnergy, player.energy + CONSTANTS.PLAYER.ENERGY_REGEN);
+            // Note: shootCooldown is already handled above with rapid fire logic
+            
+            // Energy regeneration - boost by 200% when rapid fire is active
+            const energyRegenRate = player.rapidFire ? CONSTANTS.PLAYER.ENERGY_REGEN * 3 : CONSTANTS.PLAYER.ENERGY_REGEN;
+            player.energy = Math.min(player.maxEnergy, player.energy + energyRegenRate);
             
             // Decay shield
             if (player.shield > 0) {
@@ -692,8 +695,9 @@
             // We've removed the trail checking here entirely - let checkForStuckKeys handle this
             // in a much less aggressive way
 
-            // Shooting
-            if (gameState.mouseDown && player.shootCooldown <= 0 && player.energy >= CONSTANTS.PLAYER.SHOOT_COST) {
+            // Shooting - bypass cooldown check when rapid fire is active
+            if (gameState.mouseDown && player.energy >= CONSTANTS.PLAYER.SHOOT_COST && 
+                (player.rapidFire || player.shootCooldown <= 0)) {
                 shoot();
             }
         }
@@ -728,7 +732,11 @@
                 });
             }
 
-            player.shootCooldown = CONSTANTS.PLAYER.SHOOT_COOLDOWN;
+            // Only set cooldown if not using rapid fire
+            // This way, rapid fire will be limited only by energy regeneration
+            if (!player.rapidFire) {
+                player.shootCooldown = CONSTANTS.PLAYER.SHOOT_COOLDOWN;
+            }
             player.energy -= CONSTANTS.PLAYER.SHOOT_COST;
 
             // Muzzle flash effect
@@ -874,8 +882,9 @@
                 return !hitEnemy;
             });
             
-            // Handle shooting
-            if (gameState.mouseDown && gameState.player.shootCooldown <= 0 && gameState.player.energy >= CONSTANTS.PLAYER.SHOOT_COST) {
+            // Handle shooting - bypass cooldown check when rapid fire is active
+            if (gameState.mouseDown && gameState.player.energy >= CONSTANTS.PLAYER.SHOOT_COST && 
+                (gameState.player.rapidFire || gameState.player.shootCooldown <= 0)) {
                 shootBullet();
             }
         }
@@ -910,7 +919,11 @@
                 });
             }
 
-            player.shootCooldown = CONSTANTS.PLAYER.SHOOT_COOLDOWN;
+            // Only set cooldown if not using rapid fire
+            // This way, rapid fire will be limited only by energy regeneration
+            if (!player.rapidFire) {
+                player.shootCooldown = CONSTANTS.PLAYER.SHOOT_COOLDOWN;
+            }
             player.energy -= CONSTANTS.PLAYER.SHOOT_COST;
 
             // Muzzle flash effect
@@ -2022,10 +2035,7 @@
                                 gameState.activePowerUps.multiShot.active = true;
                                 gameState.activePowerUps.multiShot.remaining = 5000;
                                 gameState.activePowerUps.multiShot.total = 5000;
-                                setTimeout(() => {
-                                    gameState.player.multiShot = false;
-                                    gameState.activePowerUps.multiShot.active = false;
-                                }, 5000);
+                                // Remove setTimeout to use frame-based timer consistently
                                 break;
                             case 'speedBoost':
                                 // Reset to base speed first to prevent stacking
@@ -2036,21 +2046,16 @@
                                 gameState.activePowerUps.speedBoost.active = true;
                                 gameState.activePowerUps.speedBoost.remaining = 7000;
                                 gameState.activePowerUps.speedBoost.total = 7000;
-                                setTimeout(() => {
-                                    gameState.player.speed = CONSTANTS.PLAYER.BASE_SPEED;
-                                    gameState.player.speedBoostActive = false;
-                                    gameState.activePowerUps.speedBoost.active = false;
-                                }, 7000);
+                                // Remove setTimeout to use frame-based timer consistently
                                 break;
                             case 'rapidFire':
                                 gameState.player.rapidFire = true;
                                 gameState.activePowerUps.rapidFire.active = true;
-                                gameState.activePowerUps.rapidFire.remaining = 6000;
-                                gameState.activePowerUps.rapidFire.total = 6000;
-                                setTimeout(() => {
-                                    gameState.player.rapidFire = false;
-                                    gameState.activePowerUps.rapidFire.active = false;
-                                }, 6000);
+                                gameState.activePowerUps.rapidFire.remaining = 10000; // 10 seconds exactly
+                                gameState.activePowerUps.rapidFire.total = 10000;
+                                // Add floating text to explain the new effect
+                                addFloatingText(`Unlimited Fire Rate!`, gameState.player.x, gameState.player.y - 30, COLORS.POWER_UPS.RAPID_FIRE, 40);
+                                addFloatingText(`Energy Regen +200%`, gameState.player.x, gameState.player.y - 60, COLORS.POWER_UPS.RAPID_FIRE, 40);
                                 break;
                             case 'healthRestore':
                                 // Fix the health restore power-up by ensuring it actually adds health
@@ -2081,11 +2086,7 @@
                                 gameState.activePowerUps.timeWarp.active = true;
                                 gameState.activePowerUps.timeWarp.remaining = 5000;
                                 gameState.activePowerUps.timeWarp.total = 5000;
-                                setTimeout(() => {
-                                    gameState.timeWarpActive = false;
-                                    gameState.player.timeWarpActive = false;
-                                    gameState.activePowerUps.timeWarp.active = false;
-                                }, 5000);
+                                // Remove setTimeout to use frame-based timer consistently
                                 break;
                         }
                         
@@ -2114,12 +2115,43 @@
             // Update remaining duration for active power-ups
             for (const type in gameState.activePowerUps) {
                 if (gameState.activePowerUps[type].active) {
-                    gameState.activePowerUps[type].remaining = Math.max(0, gameState.activePowerUps[type].remaining - (1000/60)); // Decrease by ms per frame
+                    // Only decrease timer if game is not paused
+                    if (!gamePaused) {
+                        gameState.activePowerUps[type].remaining = Math.max(0, gameState.activePowerUps[type].remaining - (1000/60)); // Decrease by ms per frame
+                    }
                     
                     // Handle shield separately since it's based on shield value
                     if (type === 'shield') {
                         gameState.activePowerUps.shield.active = gameState.player.shield > 0;
                         gameState.activePowerUps.shield.remaining = gameState.player.shield * 100; // Scale to display
+                    }
+                    
+                    // Ensure rapid fire status is tied to the timer
+                    if (type === 'rapidFire') {
+                        gameState.player.rapidFire = gameState.activePowerUps.rapidFire.remaining > 0;
+                    }
+                    
+                    // Check if power-up has expired and deactivate
+                    if (gameState.activePowerUps[type].remaining <= 0 && type !== 'shield') {
+                        gameState.activePowerUps[type].active = false;
+                        
+                        // Handle specific power-up deactivations
+                        switch(type) {
+                            case 'multiShot':
+                                gameState.player.multiShot = false;
+                                break;
+                            case 'rapidFire':
+                                gameState.player.rapidFire = false;
+                                break;
+                            case 'speedBoost':
+                                gameState.player.speed = CONSTANTS.PLAYER.BASE_SPEED;
+                                gameState.player.speedBoostActive = false;
+                                break;
+                            case 'timeWarp':
+                                gameState.timeWarpActive = false;
+                                gameState.player.timeWarpActive = false;
+                                break;
+                        }
                     }
                 }
             }
@@ -2341,7 +2373,7 @@
                     speedBoostActive: false,
                     timeWarpActive: false,
                     stuckCounter: 0,
-                    velocity: { x: 0, y: 0 }, // Reset velocity
+                    velocity: { x: 0, y: 0 }, // Ensure velocity is initialized
                     level: {
                         damage: 1,
                         speed: 1,
@@ -2376,7 +2408,7 @@
                     shield: { active: false, remaining: 0, total: 0 },
                     multiShot: { active: false, remaining: 0, total: 5000 },
                     speedBoost: { active: false, remaining: 0, total: 7000 },
-                    rapidFire: { active: false, remaining: 0, total: 6000 },
+                    rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
                     timeWarp: { active: false, remaining: 0, total: 5000 }
                 },
                 floatingTexts: []
@@ -3085,7 +3117,7 @@
             
             // ===== POWER-UP VISUAL ACCESSORIES =====
             
-            // Rapid Fire accessory - spinning circles around the player
+            // Rapid Fire accessory - energy flow representing unlimited fire rate and enhanced regeneration
             if (player.rapidFire) {
                 const circleCount = 8;
                 const radius = CONSTANTS.PLAYER.BASE_SIZE * 1.2;
