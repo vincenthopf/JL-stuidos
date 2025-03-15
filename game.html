@@ -358,6 +358,21 @@
                 this._keys[key] = true;
                 this._timestamps[key] = Date.now();
                 
+                // Pause game with L key (only when game is started)
+                if (key === 'l' && gameState.gameStarted) {
+                    // Toggle pause state
+                    gamePaused = !gamePaused;
+                    
+                    // Reset lastTime to prevent huge jumps when unpausing
+                    if (!gamePaused) {
+                        lastTime = 0;
+                    }
+                    
+                    // Prevent default action
+                    e.preventDefault();
+                    return;
+                }
+                
                 // Secret code sequence tracking (Shift+P+/)
                 if (this._secretCodeTimeout) {
                     clearTimeout(this._secretCodeTimeout);
@@ -2804,20 +2819,51 @@
 
         // Drawing functions
         function draw() {
-            // Clear the canvas
+            // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // Draw in specific order for layering
             drawBackground();
+            drawStars();
             drawObstacles();
-            drawEnemies();
             drawPowerUps();
-            drawBullets();
-            drawEnemyBullets(); // Add this line
+            drawEnemies();
             drawPlayer();
+            drawBullets();
+            drawEnemyBullets();
             drawParticles();
             drawFloatingTexts(); // Draw floating text
             drawUI();
+            
+            // Draw pause indicator if game is paused
+            if (gamePaused && gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.font = '48px "Orbitron", sans-serif';
+                ctx.fillStyle = '#FFFFFF';
+                ctx.textAlign = 'center';
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 30);
+                
+                ctx.font = '24px "Orbitron", sans-serif';
+                ctx.fillText('Press L to resume', canvas.width / 2, canvas.height / 2 + 30);
+                ctx.restore();
+            }
+            
+            // Draw game state messages
+            if (gameState.gameOver) {
+                drawGameOver();
+            } else if (gameState.gameWon) {
+                drawGameWon();
+            }
+            
+            // Draw the menu when game is not started
+            if (!gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                document.getElementById('waveSelectMenu').style.display = 'flex';
+            } else {
+                document.getElementById('waveSelectMenu').style.display = 'none';
+            }
         }
 
         function drawStars() {
@@ -3701,6 +3747,12 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.fillText(`${gameState.enemiesDefeated}/${gameState.enemiesPerWave}`, margin + panelPadding + 20, statsY + spacing + 18);
             
+            // Controls hint - Column 2
+            ctx.fillStyle = 'rgba(180, 180, 255, 0.9)';
+            ctx.fillText('⌨️', margin + panelPadding + colWidth, statsY + spacing + 18);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillText('L: Pause', margin + panelPadding + colWidth + 20, statsY + spacing + 18);
+            
             // Active Power-ups Display
             let powerUpY = 220; // Adjusted Y position
             const iconSize = 24; // Slightly smaller icons
@@ -3984,12 +4036,13 @@
                 
                 // Draw everything
                 drawBackground();
+                drawStars();
                 drawObstacles();
-                drawEnemies();
                 drawPowerUps();
+                drawEnemies();
+                drawPlayer();
                 drawBullets();
                 drawEnemyBullets();
-                drawPlayer();
                 drawParticles();
                 drawFloatingTexts(); // Draw floating text
                 drawUI();
