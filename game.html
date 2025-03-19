@@ -316,6 +316,7 @@
                 rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
                 timeWarp: { active: false, remaining: 0, total: 5000 }
             },
+            gameTimer: 0, // Add timer to track gameplay duration
         };
 
         // Secret code sequence tracking
@@ -527,6 +528,9 @@
             gameState.currentWave = gameState.selectedWave;
             gameState.enemiesDefeated = 0;
             gameState.waveComplete = false;
+            
+            // Reset game timer when starting a new game
+            gameState.gameTimer = 0;
             
             // Adjust difficulty based on wave - make early waves easier
             if (gameState.currentWave <= 3) {
@@ -2437,6 +2441,7 @@
                     rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
                     timeWarp: { active: false, remaining: 0, total: 5000 }
                 },
+                gameTimer: 0, // Add timer to track gameplay duration
             };
             
             // Reset error state
@@ -3876,6 +3881,18 @@
                            durationPercent, barColor, bgColor, true);
                 });
             }
+
+            // Draw enemy counter
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px "Segoe UI"';
+            ctx.textAlign = 'left';
+            
+            // Add game timer display in the top right corner
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px "Segoe UI"';
+            ctx.fillText(`Time: ${formatTime(gameState.gameTimer)}`, canvas.width - margin, margin + 20);
+            ctx.textAlign = 'left';
         }
 
         function drawBar(x, y, width, height, fillPercent, fillColor, backgroundColor, rounded = false) {
@@ -3993,6 +4010,11 @@
             if (!lastTime) lastTime = timestamp;
             const deltaTime = timestamp - lastTime;
             lastTime = timestamp;
+
+            // Update game timer when game is running
+            if (gameState.gameStarted && !gamePaused && !gameState.gameOver && !gameState.gameWon) {
+                gameState.gameTimer += deltaTime;
+            }
             
             // FPS monitoring
             frameCount++;
@@ -4298,6 +4320,19 @@
                 ctx.fillText(text.text, text.x, text.y);
                 ctx.restore();
             });
+        }
+
+        // Start the game once the page is loaded
+        window.onload = function() {
+            initGame();
+        };
+
+        // Format time from milliseconds to MM:SS format
+        function formatTime(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
     </script>
 </body>
