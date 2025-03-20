@@ -3764,6 +3764,15 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.fillText('L: Pause', margin + panelPadding + colWidth + 20, statsY + spacing + 18);
             
+            // Timer display - Column 1
+            const timerPulse = Math.sin(Date.now() / 400) * 0.1 + 0.9;
+            ctx.font = `${14 * timerPulse}px "Segoe UI"`;
+            ctx.fillStyle = 'rgba(150, 230, 150, 0.9)';
+            ctx.fillText('⏱️', margin + panelPadding, statsY + spacing * 2 + 18);
+            ctx.font = '13px "Segoe UI"';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.fillText(`${formatTime(gameState.gameTimer)}`, margin + panelPadding + 20, statsY + spacing * 2 + 18);
+
             // Active Power-ups Display
             let powerUpY = 220; // Adjusted Y position
             const iconSize = 24; // Slightly smaller icons
@@ -3974,7 +3983,8 @@
             ctx.fillStyle = 'white';
             ctx.font = '24px "Segoe UI"';
             ctx.fillText(`Final Score: ${gameState.player.score}`, canvas.width/2, canvas.height/2 + 50);
-            ctx.fillText('Press R to restart game', canvas.width/2, canvas.height/2 + 90);
+            ctx.fillText(`Time: ${formatTime(gameState.gameTimer)}`, canvas.width/2, canvas.height/2 + 80);
+            ctx.fillText('Press R to restart game', canvas.width/2, canvas.height/2 + 120);
             
             // Ensure the wave selection menu is initialized for when player returns
             initWaveSelectionMenu();
