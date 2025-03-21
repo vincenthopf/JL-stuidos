@@ -192,7 +192,18 @@
                 MAX_COUNT: 10,  // Maximum number of walls allowed at once
                 LIFETIME: 1800,  // 30 seconds at 60fps
                 RESPAWN_DELAY: 60  // 1 second delay before respawning
-            }
+            },
+            PLAYER_SPEED: 5,
+            PLAYER_SIZE: 30,
+            BULLET_SPEED: 10,
+            BULLET_SIZE: 5,
+            ENEMY_SIZE: 30,
+            WAVE_DELAY: 2000,
+            POWERUP_SIZE: 20,
+            POWERUP_DURATION: 5000,
+            FLOATING_TEXT_DURATION: 1500,
+            FLOATING_TEXT_SPEED: 2,
+            FLOATING_TEXT_SIZE: '24px'
         };
 
         // Visual constants
@@ -230,7 +241,7 @@
             },
             ENEMY: {
                 NORMAL: {
-                    CORE: '#FF4040',
+                    CORE: '#FF0000',
                     GLOW: '#8B0000'
                 },
                 FAST: {
@@ -1906,14 +1917,21 @@
                         // If enemy has a shield, reduce that first
                         if (enemy.shield && enemy.shield > 0) {
                             enemy.shield -= damage;
+                            // Show shield damage in cyan
+                            addFloatingText(enemy.x, enemy.y - enemy.size, Math.round(damage).toString(), '#00FFFF');
                             if (enemy.shield < 0) {
                                 // Apply remaining damage to health
+                                let healthDamage = -enemy.shield;
                                 enemy.health += enemy.shield;
                                 enemy.shield = 0;
+                                // Show health damage in red
+                                addFloatingText(enemy.x, enemy.y - enemy.size + 20, Math.round(healthDamage).toString(), '#FF0000');
                             }
                         } else {
                             // Apply damage directly to health
                             enemy.health -= damage;
+                            // Show health damage in red
+                            addFloatingText(enemy.x, enemy.y - enemy.size, Math.round(damage).toString(), '#FF0000');
                         }
                         
                         // Create hit effect
@@ -2532,8 +2550,10 @@
                         
                         // Apply damage to enemy
                         enemy.health -= enemyDamage;
+                        // Show explosion damage in orange
+                        addFloatingText(enemy.x, enemy.y - enemy.size, enemyDamage.toString(), '#FFA500');
                         
-                        // Knockback effect on enemy
+                        // Apply knockback effect to other enemies
                         const enemyKnockback = 10 * enemyDamageFactor;
                         const enemyKnockbackAngle = Math.atan2(enemyDy, enemyDx);
                         enemy.x += Math.cos(enemyKnockbackAngle) * enemyKnockback;
@@ -4303,37 +4323,50 @@
         }
 
         // Function to add floating text (for damage numbers, healing, etc.)
-        function addFloatingText(text, x, y, color, lifetime = 60, size = 20) {
+        function addFloatingText(x, y, text, color = 'red', size = CONSTANTS.FLOATING_TEXT_SIZE) {
             gameState.floatingTexts.push({
-                text,
                 x,
                 y,
+                text,
                 color,
-                lifetime,
-                maxLifetime: lifetime,
                 size,
-                velocityY: -1.5  // Float upward
+                startTime: Date.now(),
+                alpha: 1,
+                scale: 1.5  // Start larger
             });
         }
         
         // Function to update and draw floating text
         function updateFloatingTexts() {
+            const currentTime = Date.now();
             gameState.floatingTexts = gameState.floatingTexts.filter(text => {
-                text.y += text.velocityY;
-                text.lifetime--;
-                return text.lifetime > 0;
+                const age = currentTime - text.startTime;
+                if (age < CONSTANTS.FLOATING_TEXT_DURATION) {
+                    text.y -= CONSTANTS.FLOATING_TEXT_SPEED;
+                    text.alpha = 1 - (age / CONSTANTS.FLOATING_TEXT_DURATION);
+                    text.scale = 1.5 - (0.5 * age / CONSTANTS.FLOATING_TEXT_DURATION); // Shrink over time
+                    return true;
+                }
+                return false;
             });
         }
         
         function drawFloatingTexts() {
             gameState.floatingTexts.forEach(text => {
-                const alpha = text.lifetime / text.maxLifetime;
                 ctx.save();
-                ctx.globalAlpha = alpha;
-                ctx.font = `${text.size}px "Segoe UI"`;
                 ctx.fillStyle = text.color;
+                ctx.globalAlpha = text.alpha;
+                ctx.font = `bold ${text.size} Arial`;
                 ctx.textAlign = 'center';
-                ctx.fillText(text.text, text.x, text.y);
+                // Add shadow for better visibility
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                // Scale the text
+                ctx.translate(text.x, text.y);
+                ctx.scale(text.scale, text.scale);
+                ctx.fillText(text.text, 0, 0);
                 ctx.restore();
             });
         }
