@@ -122,6 +122,84 @@
             box-shadow: 0 0 20px rgba(88, 247, 88, 0.3);
             transform: translateY(-2px);
         }
+        
+        /* Debug Panel Styles */
+        #debugPanel {
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        #debugPanel .debug-item {
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        #debugPanel .debug-key {
+            color: #aaaaff;
+            margin-right: 10px;
+        }
+        
+        #debugPanel .debug-value {
+            color: #ffffff;
+        }
+        
+        #debugPanel .debug-section-header {
+            margin-top: 10px;
+            margin-bottom: 5px;
+            color: #ffaaaa;
+            font-weight: bold;
+            border-bottom: 1px solid #444;
+            padding-bottom: 3px;
+        }
+        
+        #debugPanel .error-entry {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #444;
+        }
+        
+        #debugPanel .error-message {
+            color: #ff5555;
+            font-weight: bold;
+        }
+        
+        #debugPanel .error-location {
+            color: #aaaaff;
+            font-size: 10px;
+        }
+        
+        #debugPanel .error-time, 
+        #debugPanel .timestamp {
+            color: #999;
+            font-size: 10px;
+        }
+        
+        #debugPanel .debug-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        #debugPanel button {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 3px 8px;
+            cursor: pointer;
+        }
+        
+        #debugPanel button:hover {
+            background: #444;
+        }
+        
+        #debugBtn {
+            transition: all 0.3s ease;
+        }
+        
+        #debugBtn:hover {
+            background: rgba(30, 30, 80, 0.7) !important;
+        }
     </style>
 </head>
 <body>
@@ -135,7 +213,162 @@
         <div class="wave-grid" id="waveButtons"></div>
         <button class="start-button" id="startGameButton">Start Game</button>
     </div>
+    
+    <!-- Debug and Error Panels -->
+    <div id="errorDisplay" style="position: absolute; top: 0; left: 0; right: 0; background: rgba(255, 0, 0, 0.8); color: white; padding: 10px; font-family: monospace; font-size: 14px; z-index: 1000; max-height: 50vh; overflow-y: auto; display: none;"></div>
+    
+    <div id="debugPanel" style="position: absolute; bottom: 0; right: 0; background: rgba(0, 0, 0, 0.8); border: 1px solid #444; color: #fff; padding: 10px; font-family: monospace; font-size: 12px; z-index: 1000; width: 300px; max-height: 300px; overflow-y: auto; display: none;">
+        <div class="debug-controls">
+            <button id="debugClearBtn">Clear Log</button>
+            <button id="debugToggleBtn">Toggle Debug</button>
+        </div>
+        <div id="debugContent"></div>
+    </div>
+    
+    <div id="debugBtn" style="position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); color: #fff; padding: 5px 10px; font-size: 12px; cursor: pointer; z-index: 1000; border-radius: 5px;">Debug Mode (Alt+D)</div>
+    
     <script>
+        // Add debugging and error handling functions
+        function showError(message, error) {
+            // Record error in the game errors array for the debug panel
+            if (typeof recordError === 'function') {
+                try {
+                    recordError(message, error);
+                } catch (e) {
+                    console.error("Error recording error:", e);
+                }
+            } else {
+                // If recordError not yet defined, store in window.gameErrors directly
+                if (!window.gameErrors) window.gameErrors = [];
+                window.gameErrors.push({
+                    message: message,
+                    error: error,
+                    location: error && error.stack ? error.stack.split('\n')[1] : 'Unknown',
+                    timestamp: Date.now()
+                });
+                // Keep at reasonable size
+                if (window.gameErrors.length > 20) window.gameErrors.shift();
+            }
+            
+            // Create error container if it doesn't exist
+            let errorContainer = document.getElementById('errorContainer');
+            if (!errorContainer) {
+                errorContainer = document.createElement('div');
+                errorContainer.id = 'errorContainer';
+                errorContainer.style.position = 'fixed';
+                errorContainer.style.bottom = '10px';
+                errorContainer.style.right = '10px';
+                errorContainer.style.maxWidth = '300px';
+                errorContainer.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+                errorContainer.style.color = 'white';
+                errorContainer.style.padding = '10px';
+                errorContainer.style.borderRadius = '5px';
+                errorContainer.style.fontFamily = 'monospace';
+                errorContainer.style.fontSize = '12px';
+                errorContainer.style.zIndex = '9999';
+                errorContainer.style.maxHeight = '150px';
+                errorContainer.style.overflow = 'auto';
+                document.body.appendChild(errorContainer);
+            }
+
+            // Create error message
+            const errorMessage = document.createElement('div');
+            errorMessage.style.marginBottom = '5px';
+            errorMessage.style.borderBottom = '1px solid rgba(255, 255, 255, 0.3)';
+            errorMessage.style.paddingBottom = '5px';
+            
+            // Format the error message
+            let errorText = `<strong>${message}</strong>`;
+            if (error) {
+                errorText += `<br>${error.message || error}`;
+                if (error.stack) {
+                    // Get the first line of the stack trace
+                    const stackLine = error.stack.split('\n')[1];
+                    if (stackLine) {
+                        errorText += `<br><small>${stackLine.trim()}</small>`;
+                    }
+                }
+            }
+            
+            errorMessage.innerHTML = errorText;
+            
+            // Add error to container
+            errorContainer.appendChild(errorMessage);
+            
+            // Remove error after 5 seconds
+            setTimeout(() => {
+                if (errorMessage && errorMessage.parentNode === errorContainer) {
+                    errorContainer.removeChild(errorMessage);
+                }
+                
+                // Remove container if empty
+                if (errorContainer.children.length === 0) {
+                    document.body.removeChild(errorContainer);
+                }
+            }, 5000);
+            
+            // Also update error display element if it exists
+            const errorDisplay = document.getElementById('errorDisplay');
+            if (errorDisplay) {
+                errorDisplay.style.display = 'block';
+                errorDisplay.innerHTML += `<div>${errorText}</div>`;
+                
+                // Auto-hide after 10 seconds
+                setTimeout(() => {
+                    errorDisplay.style.display = 'none';
+                    errorDisplay.innerHTML = '';
+                }, 10000);
+            }
+            
+            // Also log to console
+            console.error(message, error);
+        }
+
+        // Add a safe wrapper for any function
+        function safeExecute(func, funcName, ...args) {
+            try {
+                if (typeof func !== 'function') {
+                    throw new Error(`${funcName} is not a function`);
+                }
+                return func(...args);
+            } catch (error) {
+                showError(`Error in ${funcName}`, error);
+                return null;
+            }
+        }
+
+        // Debug mode variables
+        let debugMode = false;
+        let frameTimeHistory = [];
+        // reducedEffects is defined elsewhere in the code
+
+        // Initialize debug tools
+        window.functionExecutionTracker = {
+            enabled: false,
+            callStack: [],
+            trackCall: function(functionName, args) {
+                if (!this.enabled) return;
+                this.callStack.push({
+                    function: functionName,
+                    args: args,
+                    timestamp: Date.now()
+                });
+                // Keep stack at reasonable size
+                if (this.callStack.length > 100) {
+                    this.callStack.shift();
+                }
+            },
+            getCallStack: function() {
+                return this.callStack;
+            },
+            clear: function() {
+                this.callStack = [];
+            }
+        };
+
+        // Initialize debug breakpoints
+        window.debugBreakpoints = {};
+        
         // Set the document title
         document.title = "Bare Ball Buster";
         
@@ -4042,74 +4275,77 @@
         }
 
         function gameLoop(timestamp) {
-            // Calculate delta time for smooth animations
-            if (!lastTime) lastTime = timestamp;
-            const deltaTime = timestamp - lastTime;
-            lastTime = timestamp;
-
-            // Update game timer when game is running
-            if (gameState.gameStarted && !gamePaused && !gameState.gameOver && !gameState.gameWon) {
-                gameState.gameTimer += deltaTime;
-            }
+            // Record frame start time for performance monitoring
+            const frameStartTime = performance.now();
             
-            // FPS monitoring
-            frameCount++;
-            fpsTimer += deltaTime;
-            
-            if (fpsTimer > 1000) {
-                // If FPS drops below 30, reduce particle effects
-                const fps = frameCount / (fpsTimer / 1000);
-                if (fps < 30) {
-                    // Auto-tune performance settings
-                    reducedEffects = true;
-                } else {
-                    reducedEffects = false;
-                }
-                
-                // Reset FPS counter
-                frameCount = 0;
-                fpsTimer = 0;
-            }
-            
-            // Skip frame if running too slow (prevents spiral of death)
-            if (deltaTime > 100) {
-                requestAnimationFrame(gameLoop);
-                return;
-            }
-            
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Check for stuck keys much less frequently
-            if (Math.random() < 0.01) { // Only check 1% of frames
-                detectStuckKeys();
-                checkForStuckKeys();
-            }
-            
-            // Process game logic and render
             try {
-                if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
-                    updateGame();
+                // Calculate delta time for smooth animations
+                if (!lastTime) lastTime = timestamp;
+                const deltaTime = timestamp - lastTime;
+                lastTime = timestamp;
+
+                // Update game timer when game is running
+                if (gameState.gameStarted && !gamePaused && !gameState.gameOver && !gameState.gameWon) {
+                    gameState.gameTimer += deltaTime;
                 }
                 
-                // Draw everything
-                drawBackground();
-                drawStars();
-                drawObstacles();
-                drawPowerUps();
-                drawEnemies();
-                drawPlayer();
-                drawBullets();
-                drawEnemyBullets();
-                drawParticles();
-                drawFloatingTexts(); // Draw floating text
-                drawUI();
+                // FPS monitoring
+                frameCount++;
+                fpsTimer += deltaTime;
+                
+                if (fpsTimer > 1000) {
+                    // If FPS drops below 30, reduce particle effects
+                    const fps = frameCount / (fpsTimer / 1000);
+                    if (fps < 30) {
+                        // Auto-tune performance settings
+                        reducedEffects = true;
+                    } else {
+                        reducedEffects = false;
+                    }
+                    
+                    // Reset FPS counter
+                    frameCount = 0;
+                    fpsTimer = 0;
+                }
+                
+                // Skip frame if running too slow (prevents spiral of death)
+                if (deltaTime > 100) {
+                    window.gameLoopId = requestAnimationFrame(gameLoop);
+                    return;
+                }
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Check for stuck keys much less frequently
+                if (Math.random() < 0.01) { // Only check 1% of frames
+                    safeExecute(detectStuckKeys, "detectStuckKeys");
+                    safeExecute(checkForStuckKeys, "checkForStuckKeys");
+                }
+                
+                // Process game logic and render
+                if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
+                    safeExecute(updateGame, "updateGame");
+                }
+                
+                // Draw everything using safeExecute to prevent crashes
+                safeExecute(drawBackground, "drawBackground");
+                safeExecute(drawStars, "drawStars");
+                safeExecute(drawObstacles, "drawObstacles");
+                safeExecute(drawPowerUps, "drawPowerUps");
+                safeExecute(drawEnemies, "drawEnemies");
+                safeExecute(drawPlayer, "drawPlayer");
+                safeExecute(drawBullets, "drawBullets");
+                safeExecute(drawEnemyBullets, "drawEnemyBullets");
+                safeExecute(drawParticles, "drawParticles");
+                safeExecute(drawFloatingTexts, "drawFloatingTexts");
+                safeExecute(drawUI, "drawUI");
                 
                 // Draw game state messages
                 if (gameState.gameOver) {
-                    drawGameOver();
+                    safeExecute(drawGameOver, "drawGameOver");
                 } else if (gameState.gameWon) {
-                    drawGameWon();
+                    safeExecute(drawGameWon, "drawGameWon");
                 }
                 
                 // Draw the menu when game is not started
@@ -4118,9 +4354,25 @@
                 } else {
                     document.getElementById('waveSelectMenu').style.display = 'none';
                 }
+                
+                // Draw debug info if enabled
+                if (debugMode) {
+                    safeExecute(drawDebugInfo, "drawDebugInfo");
+                }
+                
+                // Calculate and track frame time for performance monitoring
+                const frameTime = performance.now() - frameStartTime;
+                if (debugMode && typeof frameTimeHistory !== 'undefined') {
+                    frameTimeHistory.push(frameTime);
+                    if (frameTimeHistory.length > 60) {
+                        frameTimeHistory.shift();
+                    }
+                }
+                
             } catch (error) {
                 // Error recovery - likely game state corruption
                 console.error("Game error:", error);
+                showError("Game Loop Error", error);
                 
                 // Show recovery UI
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -4138,8 +4390,8 @@
                 resetKeyboardState();
             }
             
-            // Loop
-            requestAnimationFrame(gameLoop);
+            // Loop with a reference we can cancel if needed
+            window.gameLoopId = requestAnimationFrame(gameLoop);
         }
         
         // Handle visibility change to pause game when tab is inactive
@@ -4383,6 +4635,216 @@
             const seconds = totalSeconds % 60;
             return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
+
+        // Debug panel functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Debug button event listener
+            const debugBtn = document.getElementById('debugBtn');
+            if (debugBtn) {
+                debugBtn.addEventListener('click', function() {
+                    debugMode = !debugMode;
+                    const debugPanel = document.getElementById('debugPanel');
+                    if (debugPanel) {
+                        debugPanel.style.display = debugMode ? 'block' : 'none';
+                    }
+                    this.textContent = debugMode ? 'Debug Mode: ON' : 'Debug Mode (Alt+D)';
+                });
+            }
+            
+            // Debug panel button event listeners
+            const debugClearBtn = document.getElementById('debugClearBtn');
+            if (debugClearBtn) {
+                debugClearBtn.addEventListener('click', function() {
+                    const debugContent = document.getElementById('debugContent');
+                    if (debugContent) {
+                        debugContent.innerHTML = '';
+                    }
+                    
+                    // Also clear frame time history
+                    frameTimeHistory = [];
+                });
+            }
+            
+            // Debug toggle button
+            const debugToggleBtn = document.getElementById('debugToggleBtn');
+            if (debugToggleBtn) {
+                debugToggleBtn.addEventListener('click', function() {
+                    // Toggle function execution tracking
+                    window.functionExecutionTracker.enabled = !window.functionExecutionTracker.enabled;
+                    this.textContent = window.functionExecutionTracker.enabled ? 'Tracking: ON' : 'Toggle Debug';
+                });
+            }
+            
+            // Alt+D shortcut for debug mode
+            document.addEventListener('keydown', function(e) {
+                if (e.altKey && e.key.toLowerCase() === 'd') {
+                    debugBtn.click(); // Simulate click on debug button
+                }
+            });
+        });
+        
+        // Function to draw debug information
+        function drawDebugInfo() {
+            // Update debug panel content
+            const debugContent = document.getElementById('debugContent');
+            if (debugContent && debugMode) {
+                // Calculate average frame time
+                const avgFrameTime = frameTimeHistory.length > 0 ? 
+                    frameTimeHistory.reduce((sum, time) => sum + time, 0) / frameTimeHistory.length : 0;
+                
+                // Calculate FPS
+                const fps = avgFrameTime > 0 ? 1000 / avgFrameTime : 0;
+                
+                // Format debug information
+                const debugInfo = {
+                    'FPS': fps.toFixed(1),
+                    'Frame Time': avgFrameTime.toFixed(2) + ' ms',
+                    'Game State': gameState.gameStarted ? 'Started' : 'Not Started',
+                    'Paused': gamePaused ? 'Yes' : 'No',
+                    'Wave': gameState.currentWave + '/' + gameState.wavesTotal,
+                    'Enemies': gameState.enemies ? gameState.enemies.length : 0,
+                    'Particles': gameState.particles ? gameState.particles.length : 0,
+                    'Player Health': gameState.player ? Math.round(gameState.player.health) : 'N/A',
+                    'Player Energy': gameState.player ? Math.round(gameState.player.energy) : 'N/A',
+                    'Position': gameState.player ? 
+                        `(${Math.round(gameState.player.x)}, ${Math.round(gameState.player.y)})` : 'N/A',
+                    'Reduced Effects': reducedEffects ? 'Yes' : 'No',
+                    'Game Timer': typeof formatTime === 'function' ? formatTime(gameState.gameTimer) : (gameState.gameTimer / 1000).toFixed(1) + 's'
+                };
+                
+                // Clear previous content
+                debugContent.innerHTML = '';
+                
+                // Add each debug item
+                for (const [key, value] of Object.entries(debugInfo)) {
+                    const item = document.createElement('div');
+                    item.className = 'debug-item';
+                    item.innerHTML = `<span class="debug-key">${key}:</span> <span class="debug-value">${value}</span>`;
+                    debugContent.appendChild(item);
+                }
+                
+                // List recent errors if any
+                if (window.gameErrors && window.gameErrors.length > 0) {
+                    const errorsHeader = document.createElement('div');
+                    errorsHeader.className = 'debug-section-header';
+                    errorsHeader.textContent = 'Recent Errors:';
+                    debugContent.appendChild(errorsHeader);
+                    
+                    // Show last 3 errors
+                    const recentErrors = window.gameErrors.slice(-3);
+                    recentErrors.forEach(err => {
+                        const errorItem = document.createElement('div');
+                        errorItem.className = 'error-entry';
+                        errorItem.innerHTML = `
+                            <div class="error-message">${err.message}</div>
+                            <div class="error-location">${err.location || 'Unknown'}</div>
+                            <div class="timestamp">${new Date(err.timestamp).toLocaleTimeString()}</div>
+                        `;
+                        debugContent.appendChild(errorItem);
+                    });
+                }
+            }
+            
+            // On-screen debug overlay (simpler version)
+            if (debugMode) {
+                ctx.save();
+                
+                // Draw semi-transparent background
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(10, 10, 200, 80);
+                
+                // Draw basic info
+                ctx.font = '14px monospace';
+                ctx.fillStyle = 'white';
+                
+                // Safely calculate FPS
+                let fpsText = "FPS: calculating...";
+                if (frameTimeHistory && frameTimeHistory.length > 0) {
+                    const avgFrameTime = frameTimeHistory.reduce((a, b) => a + b, 0) / frameTimeHistory.length;
+                    if (avgFrameTime > 0) {
+                        const fps = 1000 / avgFrameTime;
+                        fpsText = `FPS: ${fps.toFixed(1)}`;
+                    }
+                }
+                
+                ctx.fillText(fpsText, 20, 30);
+                ctx.fillText(`Enemies: ${gameState.enemies ? gameState.enemies.length : 0}`, 20, 50);
+                ctx.fillText(`Particles: ${gameState.particles ? gameState.particles.length : 0}`, 20, 70);
+                
+                ctx.restore();
+            }
+        }
+        
+        // Helper functions for error tracking
+        // Initialize error tracking array
+        window.gameErrors = [];
+        
+        // Enhanced error tracking that also records errors to the debug panel
+        function recordError(message, error, location) {
+            // Create error record
+            const errorRecord = {
+                message: message,
+                error: error,
+                location: location || (error && error.stack ? error.stack.split('\n')[1] : 'Unknown'),
+                timestamp: Date.now()
+            };
+            
+            // Add to errors array
+            if (!window.gameErrors) window.gameErrors = [];
+            window.gameErrors.push(errorRecord);
+            
+            // Keep error list at reasonable size
+            if (window.gameErrors.length > 20) {
+                window.gameErrors.shift();
+            }
+            
+            // Show in debug panel if visible
+            updateDebugErrorList();
+            
+            // Also show the standard error display
+            showError(message, error);
+        }
+        
+        // Update the debug panel with recent errors
+        function updateDebugErrorList() {
+            if (!debugMode) return;
+            
+            const debugContent = document.getElementById('debugContent');
+            if (!debugContent) return;
+            
+            // Find or create errors section
+            let errorsSection = debugContent.querySelector('.debug-errors');
+            if (!errorsSection) {
+                errorsSection = document.createElement('div');
+                errorsSection.className = 'debug-errors';
+                debugContent.appendChild(errorsSection);
+            }
+            
+            // Clear and rebuild errors list
+            errorsSection.innerHTML = '<h3>Recent Errors</h3>';
+            
+            // Add recent errors (most recent first)
+            const recentErrors = [...window.gameErrors].reverse().slice(0, 5);
+            if (recentErrors.length === 0) {
+                const noErrors = document.createElement('div');
+                noErrors.className = 'no-errors';
+                noErrors.textContent = 'No errors recorded';
+                errorsSection.appendChild(noErrors);
+            } else {
+                recentErrors.forEach(err => {
+                    const errorItem = document.createElement('div');
+                    errorItem.className = 'error-item';
+                    errorItem.innerHTML = `
+                        <div class="error-time">${new Date(err.timestamp).toLocaleTimeString()}</div>
+                        <div class="error-msg">${err.message}</div>
+                        <div class="error-loc">${err.location}</div>
+                    `;
+                    errorsSection.appendChild(errorItem);
+                });
+            }
+        }
+
+        // Handle visibility change to pause game when tab is inactive
     </script>
 </body>
 </html> 
