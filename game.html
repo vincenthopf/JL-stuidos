@@ -378,6 +378,136 @@
         // Set the document title
         document.title = "Bare Ball Buster";
         
+        // Sound Manager
+        const SoundManager = {
+            audioContext: null,
+            sounds: {},
+            masterVolume: 0.7, // Default volume
+            soundsReady: false,
+            pendingSounds: 0,
+
+            init() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log("AudioContext initialized.");
+                    // Resume context on user interaction
+                    const resumeContext = () => {
+                        if (this.audioContext.state === 'suspended') {
+                            this.audioContext.resume().then(() => {
+                                console.log("AudioContext resumed successfully.");
+                                document.removeEventListener('click', resumeContext);
+                                document.removeEventListener('keydown', resumeContext);
+                            }).catch(e => console.error("Error resuming AudioContext:", e));
+                        }
+                    };
+                    document.addEventListener('click', resumeContext, { once: true });
+                    document.addEventListener('keydown', resumeContext, { once: true });
+                    
+                } catch (e) {
+                    console.error("Web Audio API is not supported in this browser", e);
+                    showError("Web Audio API not supported", e);
+                }
+            },
+
+            loadSound(name, url) {
+                if (!this.audioContext) return Promise.reject("AudioContext not initialized");
+                console.log(`Attempting to load sound: ${name} from ${url}`);
+                this.pendingSounds++;
+                return fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status} for ${url}`);
+                        }
+                        return response.arrayBuffer();
+                    })
+                    .then(arrayBuffer => this.audioContext.decodeAudioData(arrayBuffer))
+                    .then(audioBuffer => {
+                        this.sounds[name] = { buffer: audioBuffer };
+                        console.log(`Sound loaded: ${name.toUpperCase()}`);
+                        this.pendingSounds--;
+                        if (this.pendingSounds === 0) {
+                           this.soundsReady = true;
+                           console.log("Sounds ready!");
+                        }
+                    })
+                    .catch(error => {
+                        console.error(`Error loading sound ${name} from ${url}:`, error);
+                        showError(`Error loading sound ${name}`, error);
+                        this.pendingSounds--; // Decrement even on error
+                        // Optionally re-check if sounds are ready if others might still load
+                        if (this.pendingSounds === 0) { 
+                           this.soundsReady = true;
+                           console.log("Sounds ready! (despite errors)");
+                        }
+                    });
+            },
+
+            playSound(name, volume = 1, loop = false) {
+                console.log(`Attempting to play sound: ${name.toUpperCase()}`);
+                if (!this.audioContext || !this.sounds[name] || !this.sounds[name].buffer || !this.soundsReady) {
+                    console.warn(`Cannot play sound: ${name}. Context: ${!!this.audioContext}, Sound loaded: ${!!this.sounds[name]}, Buffer: ${!!this.sounds[name]?.buffer}, Ready: ${this.soundsReady}`);
+                    return;
+                }
+                if (this.audioContext.state === 'suspended') {
+                    console.warn("AudioContext suspended. Cannot play sound until user interaction.");
+                    return; // Don't play if context is suspended
+                }
+
+                try {
+                    const source = this.audioContext.createBufferSource();
+                    const gainNode = this.audioContext.createGain();
+
+                    source.buffer = this.sounds[name].buffer;
+                    source.loop = loop;
+                    
+                    // Connect source to gain node, and gain node to destination
+                    source.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    // Set volume
+                    gainNode.gain.setValueAtTime(this.masterVolume * volume, this.audioContext.currentTime);
+                    
+                    source.start(0);
+                    console.log(`Sound played successfully: ${name.toUpperCase()}`);
+                } catch (e) {
+                    console.error(`Error playing sound ${name}:`, e);
+                    showError(`Error playing sound ${name}`, e);
+                }
+            },
+
+            setMasterVolume(volume) {
+                this.masterVolume = Math.max(0, Math.min(1, volume));
+                console.log(`Master volume set to: ${this.masterVolume}`);
+            },
+            
+            preloadSounds() {
+                if (!this.audioContext) this.init(); // Ensure context is initialized
+                if (!this.audioContext) return; // Exit if context failed to initialize
+                
+                console.log("Preloading all sounds...");
+                const soundFiles = {
+                    'SHOOT': 'sounds/player shoot.mp3',
+                    'PLAYER_HIT': 'sounds/getting damaged-[AudioTrimmer.com].wav',
+                    'POWERUP_COLLECT': 'sounds/gain power-up.wav',
+                    'SHIELD_HIT': 'sounds/sheild brakes-[AudioTrimmer.com].wav', // Corrected filename?
+                    'AMBIENT': 'sounds/ambient music.wav' // Add ambient music
+                    // Add other sounds here
+                };
+
+                const promises = Object.entries(soundFiles).map(([name, url]) => 
+                    this.loadSound(name, url)
+                );
+                
+                Promise.allSettled(promises).then(() => {
+                     console.log("All sounds preloaded (or attempted).");
+                     // Note: soundsReady flag is set within loadSound when pendingSounds reaches 0
+                });
+            }
+        };
+
+        // Initialize Sound Manager and Preload Sounds
+        SoundManager.preloadSounds();
+        
         // Initialize canvas
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -1017,6 +1147,9 @@
             }
             player.energy -= CONSTANTS.PLAYER.SHOOT_COST;
 
+            // Play shoot sound
+            SoundManager.playSound('SHOOT', 0.5); // Play SHOOT sound at 50% volume
+
             // Muzzle flash effect
             for (let i = 0; i < 5; i++) {
                 gameState.particles.push(createParticle(
@@ -1203,6 +1336,9 @@
                 player.shootCooldown = CONSTANTS.PLAYER.SHOOT_COOLDOWN;
             }
             player.energy -= CONSTANTS.PLAYER.SHOOT_COST;
+
+            // Play shoot sound
+            SoundManager.playSound('SHOOT', 0.5); // Play SHOOT sound at 50% volume
 
             // Muzzle flash effect
             for (let i = 0; i < 5; i++) {
