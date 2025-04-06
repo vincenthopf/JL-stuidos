@@ -385,6 +385,7 @@
             masterVolume: 0.7, // Default volume
             soundsReady: false,
             pendingSounds: 0,
+            ambientPlaying: false, // Flag to track ambient music
 
             init() {
                 try {
@@ -395,9 +396,20 @@
                         if (this.audioContext.state === 'suspended') {
                             this.audioContext.resume().then(() => {
                                 console.log("AudioContext resumed successfully.");
+                                // Play ambient music once context is resumed and sounds are ready
+                                if (this.soundsReady && !this.ambientPlaying) {
+                                    this.playSound('AMBIENT', 0.3, true); // Play looped at 30% volume
+                                    this.ambientPlaying = true;
+                                }
                                 document.removeEventListener('click', resumeContext);
                                 document.removeEventListener('keydown', resumeContext);
                             }).catch(e => console.error("Error resuming AudioContext:", e));
+                        } else if (this.audioContext.state === 'running') {
+                           // If context is already running, try playing ambient immediately if ready
+                           if (this.soundsReady && !this.ambientPlaying) {
+                               this.playSound('AMBIENT', 0.3, true);
+                               this.ambientPlaying = true;
+                           }
                         }
                     };
                     document.addEventListener('click', resumeContext, { once: true });
@@ -485,6 +497,7 @@
                 if (!this.audioContext) return; // Exit if context failed to initialize
                 
                 console.log("Preloading all sounds...");
+                this.ambientPlaying = false; // Reset flag on preload
                 const soundFiles = {
                     'SHOOT': 'sounds/player shoot.mp3',
                     'PLAYER_HIT': 'sounds/getting damaged-[AudioTrimmer.com].wav',
@@ -501,6 +514,7 @@
                 Promise.allSettled(promises).then(() => {
                      console.log("All sounds preloaded (or attempted).");
                      // Note: soundsReady flag is set within loadSound when pendingSounds reaches 0
+                     // Removed ambient music start from here - moved to resumeContext
                 });
             }
         };
@@ -1374,15 +1388,30 @@
                 const dy = gameState.player.y - bullet.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
+                // --- DEBUGGING COLLISION ---
+                const collisionThreshold = CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5;
+                const playerPos = gameState.player ? `(${gameState.player.x.toFixed(1)}, ${gameState.player.y.toFixed(1)})` : 'N/A';
+                console.log(`Bullet Pos: (${bullet.x.toFixed(1)}, ${bullet.y.toFixed(1)}), Player Pos: ${playerPos}, Dist: ${dist.toFixed(1)}, Threshold: ${collisionThreshold.toFixed(1)} (PlayerSize: ${CONSTANTS.PLAYER.BASE_SIZE}, BulletSize: ${bulletSize})`);
+                // --- END DEBUGGING ---
+
                 if (dist < CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5) {
+                    console.log("Enemy bullet hit player collision detected!"); // DEBUG
                     // If shield is active, reduce shield instead of health
                     if (gameState.player.shield > 0) {
+                        console.log("Player shield is active."); // DEBUG
                         gameState.player.shield -= bullet.fromBoss ? 30 : 15;
                         if (gameState.player.shield < 0) gameState.player.shield = 0;
+                        // Play shield hit sound
+                        console.log("Attempting to play SHIELD_HIT sound."); // DEBUG
+                        SoundManager.playSound('SHIELD_HIT', 0.7);
                     } else {
+                        console.log("Player shield is NOT active."); // DEBUG
                         // Bullets from boss deal more damage
                         const damage = bullet.fromBoss ? 30 : 15; // Increased: boss bullets 30 (was 20), normal bullets 15 (was 10)
                         gameState.player.health -= damage;
+                        // Play player hit sound
+                        console.log("Attempting to play PLAYER_HIT sound."); // DEBUG
+                        SoundManager.playSound('PLAYER_HIT', 0.8);
                         
                         // Check for game over
                         if (gameState.player.health <= 0) {
@@ -2168,11 +2197,17 @@
         function checkEnemyCollisions(enemy, dist) {
             // Check collision with player
             if (dist < CONSTANTS.PLAYER.BASE_SIZE + enemy.size * 0.5) {
+                console.log(`Enemy (${enemy.type}) hit player collision detected!`); // DEBUG
                 // If shield is active, reduce shield instead of health
                 if (gameState.player.shield > 0) {
+                    console.log("Player shield is active for enemy collision."); // DEBUG
                     gameState.player.shield -= 75; // Increased from 50 to be more impactful
                     if (gameState.player.shield < 0) gameState.player.shield = 0;
+                    // Play shield hit sound for enemy collision
+                    console.log("Attempting to play SHIELD_HIT sound (enemy collision)."); // DEBUG
+                    SoundManager.playSound('SHIELD_HIT', 0.7);
                 } else {
+                    console.log("Player shield is NOT active for enemy collision."); // DEBUG
                     // Different damage based on enemy type
                     let damage = 15; // Normal enemy damage (increased from 10)
                     if (enemy.type === 'FAST') damage = 15; // Fast enemy (increased from 10)
@@ -2182,11 +2217,14 @@
                     if (enemy.type === 'ELITE') damage = 35; // Elite enemy (increased from 25)
                     if (enemy.type === 'BOSS') damage = 50; // Boss enemy (increased from 35)
                 
-                    
                     // Reduce damage for early waves
                     if (gameState.currentWave <= 2) {
                         damage = Math.round(damage * 0.7);
                     }
+                    
+                    // Play player hit sound *before* applying damage
+                    console.log("Attempting to play PLAYER_HIT sound (enemy collision)."); // DEBUG
+                    SoundManager.playSound('PLAYER_HIT', 0.8);
                     
                     gameState.player.health -= damage;
                     
@@ -2510,6 +2548,9 @@
                                 break;
                         }
                         
+                        // Play power-up collection sound
+                        SoundManager.playSound('POWERUP_COLLECT', 0.6);
+
                         // Create visual explosion effect for power-up collection
                         let colorKey;
                         switch(powerUp.type) {
@@ -4585,63 +4626,7 @@
         // Start the game with the optimized loop
         requestAnimationFrame(gameLoop);
 
-        function updateEnemyBullets() {
-            // Update enemy bullets
-            gameState.enemyBullets = gameState.enemyBullets.filter(bullet => {
-                // Move bullet
-                bullet.x += bullet.dx;
-                bullet.y += bullet.dy;
-                
-                // Reduce lifetime
-                bullet.lifetime--;
-                
-                // Remove if lifetime is over
-                if (bullet.lifetime <= 0) {
-                    return false;
-                }
-                
-                // Define bullet size based on source
-                const bulletSize = bullet.fromBoss ? (bullet.size || 12) : 8;
-                
-                // Check collision with player
-                const dx = gameState.player.x - bullet.x;
-                const dy = gameState.player.y - bullet.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist < CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5) {
-                    // If shield is active, reduce shield instead of health
-                    if (gameState.player.shield > 0) {
-                        gameState.player.shield -= bullet.fromBoss ? 30 : 15;
-                        if (gameState.player.shield < 0) gameState.player.shield = 0;
-                    } else {
-                        // Bullets from boss deal more damage
-                        const damage = bullet.fromBoss ? 30 : 15; // Increased: boss bullets 30 (was 20), normal bullets 15 (was 10)
-                        gameState.player.health -= damage;
-                        
-                        // Check for game over
-                        if (gameState.player.health <= 0) {
-                            gameState.gameOver = true;
-                        }
-                    }
-                    
-                    // Create hit effect
-                    for (let i = 0; i < 8; i++) {
-                        gameState.particles.push(createParticle(
-                            bullet.x, bullet.y,
-                            bullet.fromBoss ? COLORS.ENEMY.BOSS.CORE : '#FF4040',
-                            2, 3, 15,
-                            true
-                        ));
-                    }
-                    
-                    return false;
-                }
-                
-                // Keep bullet
-                return true;
-            });
-        }
-
+        // --- Ensure these functions are defined here ---
         function drawEnemyBullets() {
             gameState.enemyBullets.forEach(bullet => {
                 ctx.save();
@@ -4702,6 +4687,7 @@
                 }
             }
         }
+        // --- End ensure ---
 
         function updateStars() {
             // Update star positions to create parallax scrolling effect
