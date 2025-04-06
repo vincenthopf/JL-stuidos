@@ -591,66 +591,50 @@
 
         // Visual constants
         const COLORS = {
+            // Reverting Player and Bullet colors to previous state
             PLAYER: {
-                CORE: '#58A1F7',
+                CORE: '#58A1F7', // Original blue
                 GLOW: '#1E90FF',
-                TRAIL: 'rgba(88, 161, 247, 0.3)'
+                TRAIL: 'rgba(88, 161, 247, 0.3)',
+                SHIELD: 'rgba(0, 180, 255, 0.4)' // Keep shield color
             },
             BULLET: {
-                CORE: '#FFD700',
+                CORE: '#FFD700', // Original yellow/gold
                 GLOW: '#FFA500'
             },
             POWER_UPS: {
-                RAPID_FIRE: '#00FF7F', // Changed back to original green color
-                SHIELD: '#1E90FF',
-                MULTI_SHOT: '#FF4500',
-                SPEED_BOOST: '#FFFF00', 
-                HEALTH_RESTORE: '#FF69B4',
-                TIME_WARP: '#9932CC'
+                RAPID_FIRE: '#00FF7F', // SpringGreen
+                SHIELD: '#1E90FF', // DodgerBlue
+                MULTI_SHOT: '#FF4500', // OrangeRed
+                SPEED_BOOST: '#FFFF00', // Yellow
+                HEALTH_RESTORE: '#FF69B4', // HotPink
+                TIME_WARP: '#9932CC' // DarkOrchid
             },
             OBSTACLES: {
-                WALL: {
-                    CORE: '#4A4A4A',  // Darker grey for walls
-                    GLOW: '#2D2D2D'   // Even darker grey for glow
-                },
-                CRYSTAL_WALL: {
-                    CORE: '#616161',  // Medium grey for crystal walls
-                    GLOW: '#3D3D3D'   // Darker grey for glow
-                },
-                BARRIER_WALL: {
-                    CORE: '#7D7D7D',  // Lighter grey for barrier walls
-                    GLOW: '#4D4D4D'   // Medium grey for glow
-                }
+                WALL: { CORE: '#4A4A4A', GLOW: '#2D2D2D' },
+                CRYSTAL_WALL: { CORE: '#616161', GLOW: '#3D3D3D' },
+                BARRIER_WALL: { CORE: '#7D7D7D', GLOW: '#4D4D4D' }
             },
             ENEMY: {
-                NORMAL: {
-                    CORE: '#FF0000',
-                    GLOW: '#8B0000'
-                },
-                FAST: {
-                    CORE: '#FF8C00',
-                    GLOW: '#D2691E'
-                },
-                TANK: {
-                    CORE: '#8B0000',
-                    GLOW: '#4A0000'
-                },
-                SHOOTER: {
-                    CORE: '#9370DB',
-                    GLOW: '#483D8B'
-                },
-                BOMBER: {
-                    CORE: '#32CD32',
-                    GLOW: '#006400'
-                },
-                ELITE: {
-                    CORE: '#FFD700',
-                    GLOW: '#B8860B'
-                },
-                BOSS: {
-                    CORE: '#FF00FF',
-                    GLOW: '#8B008B'
-                }
+                 // Reverting original enemies to previous colors
+                NORMAL: { CORE: '#FF0000', GLOW: '#8B0000' }, // Red
+                FAST: { CORE: '#FF8C00', GLOW: '#D2691E' }, // DarkOrange
+                TANK: { CORE: '#8B0000', GLOW: '#4A0000' }, // DarkRed
+                SHOOTER: { CORE: '#9370DB', GLOW: '#483D8B' }, // MediumPurple
+                BOMBER: { CORE: '#32CD32', GLOW: '#006400' }, // LimeGreen (Keeping this one as it was green before)
+                ELITE: { CORE: '#FFD700', GLOW: '#B8860B' }, // Gold
+                // Keeping new enemy colors
+                HEALER: { CORE: '#32CD32', GLOW: '#90EE90' }, // LimeGreen core, LightGreen glow
+                MINELAYER: { CORE: '#A0522D', GLOW: '#CD853F' }, // Sienna core, Peru glow
+                TURRET: { CORE: '#4682B4', GLOW: '#B0C4DE' }, // SteelBlue core, LightSteelBlue glow
+                SPLITTER: { CORE: '#D2691E', GLOW: '#F4A460' }, // Chocolate core, SandyBrown glow
+                BOSS: { CORE: '#FF00FF', GLOW: '#8B008B' } // Magenta
+            },
+            // Add Mine colors
+            MINE: { 
+                ARMING: '#FFA500', // Orange while arming
+                ARMED: '#DC143C', // Crimson when armed
+                GLOW: '#FF0000' // Red glow
             }
         };
 
@@ -717,6 +701,7 @@
                 timeWarp: { active: false, remaining: 0, total: 5000 }
             },
             gameTimer: 0, // Add timer to track gameplay duration
+            mines: [], // <<< Add mines array
         };
 
         // Secret code sequence tracking
@@ -1024,6 +1009,7 @@
             updateObstacles();
             updateParticles();
             updateFloatingTexts(); // Update floating text
+            updateMines(); // <<< Call updateMines
             
             // Spawn enemies if not in a boss fight
             if (!gameState.waveComplete && 
@@ -1302,9 +1288,45 @@
                         }
                     }
                 });
-                
+                 // Check collision with mines
+        let hitMine = false;
+        gameState.mines = gameState.mines.filter(mine => {
+            // Check collision only if mine is armed
+            if (mine.armTime <= 0) {
+                const dx = bullet.x - mine.x;
+                const dy = bullet.y - mine.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                // Use bullet size constant from CONSTANTS object if available, otherwise use a default
+                const bulletRadius = (typeof CONSTANTS !== 'undefined' && CONSTANTS.BULLET && CONSTANTS.BULLET.SIZE) ? CONSTANTS.BULLET.SIZE / 2 : 3;
+                if (dist < bulletRadius + mine.size) {
+                    // Hit! Mark mine for removal and trigger effects
+                    hitMine = true;
+
+                    // Create explosion effect for mine destruction
+                    for (let i = 0; i < 10; i++) { // Smaller explosion than player hitting mine
+                        gameState.particles.push(createParticle(
+                            mine.x, mine.y,
+                            (typeof COLORS !== 'undefined' && COLORS.MINE) ? COLORS.MINE.ARMED : 'orange', // Use defined color or default
+                            2, 4, 20, true
+                        ));
+                    }
+                    // Add small score reward
+                    gameState.player.score += 5;
+                    // Ensure addFloatingText exists before calling
+                    if (typeof addFloatingText === 'function') {
+                         addFloatingText(mine.x, mine.y - mine.size, '+5', 'gold');
+                    }
+
+                    // Remove the mine
+                    return false;
+                }
+            }
+            return true; // Keep the mine if no collision or not armed
+        });
+
                 // Return false to remove the bullet if it hit an enemy
-                return !hitEnemy;
+                return !(hitEnemy  || hitMine);
             });
             
             // Handle shooting - bypass cooldown check when rapid fire is active
@@ -1996,6 +2018,141 @@
                         // Faster attack cooldown (reduced from 120)
                         enemy.attackCooldown = 90;
                     }
+                } else if (enemy.type === 'HEALER') {
+                    // Healer specific behavior
+                    if (enemy.healCooldown > 0) {
+                        enemy.healCooldown--;
+                    } else if (dist > 50) { // Healers try to stay back slightly
+                        let targetHealed = false;
+                        let closestDamagedEnemy = null;
+                        let minDamagedDist = enemy.healRange; // Max range
+
+                        // Find closest damaged ally (not self, not other healers)
+                        gameState.enemies.forEach(otherEnemy => {
+                            if (otherEnemy !== enemy && otherEnemy.type !== 'HEALER' && otherEnemy.health < otherEnemy.maxHealth) {
+                                const d = Math.hypot(enemy.x - otherEnemy.x, enemy.y - otherEnemy.y);
+                                if (d < minDamagedDist) {
+                                    minDamagedDist = d;
+                                    closestDamagedEnemy = otherEnemy;
+                                }
+                            }
+                        });
+
+                        if (closestDamagedEnemy) {
+                            // Heal the target
+                            closestDamagedEnemy.health = Math.min(closestDamagedEnemy.maxHealth, closestDamagedEnemy.health + enemy.healAmount);
+                            enemy.healCooldown = 120; // Reset cooldown
+                            targetHealed = true;
+
+                            // Add healing particle effect
+                            for (let i = 0; i < 3; i++) { // Fewer particles for heal
+                                gameState.particles.push(createParticle(
+                                    enemy.x, enemy.y,
+                                    COLORS.ENEMY.HEALER.GLOW, // Use glow color
+                                    1, 3, 30,
+                                    true,
+                                    closestDamagedEnemy // Target particle destination
+                                ));
+                            }
+                             // Add floating text on healed enemy
+                            addFloatingText(closestDamagedEnemy.x, closestDamagedEnemy.y - closestDamagedEnemy.size, `+${enemy.healAmount}`, 'lime');
+                        }
+                    }
+                    // Healer movement: still moves towards player, but maybe slower or more erratic later
+                     enemy.x += dx / dist * enemy.speed * 0.8; // Slightly slower move speed
+                     enemy.y += dy / dist * enemy.speed * 0.8;
+
+                } else if (enemy.type === 'MINELAYER') {
+                    // --- MINELAYER LOGIC --- 
+                    if (enemy.mineCooldown > 0) {
+                        enemy.mineCooldown--;
+                    } else {
+                        // Lay a mine
+                        gameState.mines.push({
+                            x: enemy.x,
+                            y: enemy.y,
+                            size: 10,
+                            armTime: 90, // Frames until armed (1.5 seconds)
+                            lifetime: 600, // Frames until disappears (10 seconds)
+                            damage: 50, // Damage if player hits it
+                            radius: 75 // Explosion radius
+                        });
+                        enemy.mineCooldown = 120 + Math.random() * 60; // Reset cooldown (2-3 seconds)
+                    }
+                    
+                    // Minelayer movement: Try to stay at a distance from the player
+                    const idealDistance = 300;
+                    if (dist < idealDistance - 50) { // Too close, move away
+                        enemy.x -= dx / dist * enemy.speed * speedMultiplier * 1.2; // Move away faster
+                        enemy.y -= dy / dist * enemy.speed * speedMultiplier * 1.2;
+                    } else if (dist > idealDistance + 50) { // Too far, move closer
+                         enemy.x += dx / dist * enemy.speed * speedMultiplier * 0.7; // Move closer slower
+                         enemy.y += dy / dist * enemy.speed * speedMultiplier * 0.7;
+                    } else { // Maintain distance - strafe slowly?
+                        // Optional: add slight sideways movement here later
+                    }
+                    // --- END MINELAYER LOGIC ---
+                
+                } else if (enemy.type === 'TURRET') {
+                     // --- TURRET LOGIC (State Machine) ---
+                    const playerDist = dist; // Use pre-calculated distance
+
+                    // State: IDLE (Waiting for cooldown)
+                    if (enemy.turretState === 'IDLE') {
+                        if (enemy.fireCooldown > 0) {
+                            enemy.fireCooldown--;
+                        } else {
+                            // Cooldown finished, start charging
+                            enemy.turretState = 'CHARGING';
+                            enemy.chargeTimer = 0;
+                        }
+                        // Very slow movement in IDLE state
+                        enemy.x += dx / dist * enemy.speed * speedMultiplier * 0.5;
+                        enemy.y += dy / dist * enemy.speed * speedMultiplier * 0.5;
+                    }
+                    // State: CHARGING
+                    else if (enemy.turretState === 'CHARGING') {
+                        enemy.chargeTimer++;
+                        // Keep aiming at the player during charge
+                        enemy.targetAngle = Math.atan2(dy, dx);
+                        
+                        // Stop moving while charging
+                        // Add charging visual effect here later
+
+                        if (enemy.chargeTimer >= enemy.chargeDuration) {
+                            // Charge complete, start firing
+                            enemy.turretState = 'FIRING';
+                            enemy.shotsFired = 0;
+                        }
+                    }
+                    // State: FIRING (Burst)
+                    else if (enemy.turretState === 'FIRING') {
+                        // Decrement cooldown between shots in burst
+                        if (enemy.fireCooldown > 0) {
+                             enemy.fireCooldown--;
+                        } else if (enemy.shotsFired < enemy.shotsPerBurst) {
+                            // Fire one shot of the burst
+                             gameState.enemyBullets.push({
+                                x: enemy.x,
+                                y: enemy.y,
+                                dx: Math.cos(enemy.targetAngle) * 6, // Faster bullets
+                                dy: Math.sin(enemy.targetAngle) * 6,
+                                lifetime: 75 // Longer lifetime
+                            });
+                            enemy.shotsFired++;
+                            enemy.fireCooldown = enemy.burstDelay; // Set delay for next shot
+                             // Add firing visual effect here later
+                        }
+                         else {
+                            // Burst finished, go to COOLDOWN (This code should remain)
+                            enemy.turretState = 'IDLE';
+                            enemy.fireCooldown = enemy.fireCooldownDuration; // Start main cooldown
+                            enemy.chargeTimer = 0; // Reset charge timer
+                        }
+                        // Stop moving while firing
+                    }
+                     // --- END TURRET LOGIC ---
+
                 } else {
                     // Default enemy behavior (NORMAL, FAST, TANK)
                     // Simply move towards player
@@ -2019,6 +2176,97 @@
                 return !checkEnemyCollisions(enemy, dist);
             });
         }
+        // --- Add updateMines and drawMines functions ---
+function updateMines() {
+    gameState.mines = gameState.mines.filter(mine => {
+        // Countdown lifetime and arming time
+        mine.lifetime--;
+        if (mine.armTime > 0) {
+            mine.armTime--;
+        }
+
+        // Remove if lifetime expires
+        if (mine.lifetime <= 0) {
+            return false;
+        }
+
+        // Check collision with player only if armed
+        if (mine.armTime <= 0) {
+            const dx = gameState.player.x - mine.x;
+            const dy = gameState.player.y - mine.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist < CONSTANTS.PLAYER.BASE_SIZE + mine.size) {
+                // Collision! Damage player
+                 if (gameState.player.shield > 0) {
+                    gameState.player.shield -= mine.damage * 0.8; // Mines do slightly less damage to shields
+                    if (gameState.player.shield < 0) gameState.player.shield = 0;
+                    SoundManager.playSound('SHIELD_HIT', 0.6); // Use shield hit sound
+                } else {
+                    gameState.player.health -= mine.damage;
+                    SoundManager.playSound('PLAYER_HIT', 0.9); // Use player hit sound
+                    if (gameState.player.health <= 0) {
+                        gameState.gameOver = true;
+                    }
+                }
+
+// Create explosion effect
+for (let i = 0; i < 20; i++) { // Big explosion
+     gameState.particles.push(createParticle(
+        mine.x, mine.y,
+        COLORS.MINE.ARMED,
+        3, 6, 40, true
+    ));
+}
+addFloatingText(gameState.player.x, gameState.player.y - 20, `-${mine.damage}`, 'red');
+
+return false; // Remove mine after collision
+}
+}
+
+return true; // Keep the mine
+});
+}
+
+function drawMines() {
+gameState.mines.forEach(mine => {
+ctx.save();
+const isArmed = mine.armTime <= 0;
+const color = isArmed ? COLORS.MINE.ARMED : COLORS.MINE.ARMING;
+
+// Pulsing effect for armed mines
+let size = mine.size;
+let alpha = 1.0;
+if (isArmed) {
+const pulse = Math.sin(Date.now() / 150); // Faster pulse
+size = mine.size * (1 + pulse * 0.2);
+alpha = 0.7 + pulse * 0.3;
+if (!reducedEffects) {
+ drawGlow(mine.x, mine.y, size * 2.5, COLORS.MINE.GLOW);
+}
+}
+
+// Draw mine body
+ctx.globalAlpha = alpha;
+ctx.fillStyle = color;
+ctx.beginPath();
+ctx.arc(mine.x, mine.y, size, 0, Math.PI * 2);
+ctx.fill();
+
+// Draw arming timer or armed indicator (optional)
+ if (!isArmed) {
+    // Draw shrinking arc for arm timer
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(mine.x, mine.y, size + 2, -Math.PI/2, -Math.PI/2 + (Math.PI * 2 * (1 - mine.armTime / 90)));
+    ctx.stroke();
+}
+
+ctx.restore();
+});
+}
+// --- End add updateMines and drawMines ---
 
         function spawnEnemy() {
             const side = Math.floor(Math.random() * 4);
@@ -2032,15 +2280,19 @@
             }
 
             // Randomly select enemy type based on current wave
-            const enemyTypes = ['NORMAL', 'FAST', 'TANK', 'SHOOTER', 'BOMBER', 'ELITE'];
+            const enemyTypes = ['NORMAL', 'FAST', 'TANK', 'SHOOTER', 'BOMBER', 'ELITE', 'HEALER', 'MINELAYER', 'TURRET', 'SPLITTER']; // Added new types
             let availableTypes = ['NORMAL'];
             
             // Add more enemy types as waves progress - made easier for early waves
+            if (gameState.currentWave >= 3) availableTypes.push('HEALER'); // HEALER starts Wave 3
             if (gameState.currentWave >= 3) availableTypes.push('FAST'); // Was 2
             if (gameState.currentWave >= 4) availableTypes.push('TANK'); // Was 3
             if (gameState.currentWave >= 5) availableTypes.push('SHOOTER'); // Was 4
+            if (gameState.currentWave >= 6) availableTypes.push('MINELAYER'); // MINELAYER starts Wave 6
             if (gameState.currentWave >= 6) availableTypes.push('BOMBER'); // Was 5
+            if (gameState.currentWave >= 7) availableTypes.push('TURRET'); // TURRET starts Wave 7
             if (gameState.currentWave >= 7) availableTypes.push('ELITE'); // Was 6
+            if (gameState.currentWave >= 8) availableTypes.push('SPLITTER'); // SPLITTER starts Wave 8
             
             // Don't spawn normal enemies during boss fight
             if (gameState.isBossFight) {
@@ -2107,6 +2359,46 @@
                     enemyConfig.health = 120;
                     enemyConfig.maxHealth = 120;
                     enemyConfig.size = 25;
+                    break;
+                case 'HEALER':
+                    enemyConfig.speed = 1.8 + Math.random() * 0.4; // Moderate speed
+                    enemyConfig.health = 70; // Lower health
+                    enemyConfig.maxHealth = 70;
+                    enemyConfig.size = 18;
+                    enemyConfig.healCooldown = 120; // Frames between heals (2 seconds)
+                    enemyConfig.healRange = 250; // How close it needs to be to heal
+                    enemyConfig.healAmount = 15; // How much it heals per tick
+                    break;
+                case 'MINELAYER':
+                    enemyConfig.speed = 1.5 + Math.random(); // Moves slowly to position
+                    enemyConfig.health = 100;
+                    enemyConfig.maxHealth = 100;
+                    enemyConfig.size = 20;
+                    enemyConfig.mineCooldown = 120; // Frames between mines (2 seconds)
+                    // Removed mineRange, not needed here
+                    break;
+                case 'TURRET':
+                    enemyConfig.speed = 0.3 + Math.random() * 0.2; // Very slow speed, mostly stationary
+                    enemyConfig.health = 200; // Tanky health
+                    enemyConfig.maxHealth = 200;
+                    enemyConfig.size = 28; // Slightly larger
+                    enemyConfig.turretState = 'IDLE'; // Initial state
+                    enemyConfig.chargeTimer = 0;
+                    enemyConfig.chargeDuration = 180; // Frames to charge (3 seconds)
+                    enemyConfig.fireCooldown = 0;
+                    enemyConfig.fireCooldownDuration = 90; // Cooldown after firing (1.5 seconds)
+                    enemyConfig.shotsPerBurst = 5;
+                    enemyConfig.burstDelay = 5; // Delay between shots in a burst
+                    enemyConfig.shotsFired = 0;
+                    enemyConfig.targetAngle = 0; // Angle to fire burst
+                    break;
+                case 'SPLITTER':
+                    enemyConfig.speed = 1.5 + Math.random();
+                    enemyConfig.health = 100;
+                    enemyConfig.maxHealth = 100;
+                    enemyConfig.size = 20;
+                    enemyConfig.splitterCooldown = 60; // Frames between shots (1.5 seconds)
+                    enemyConfig.splitterRange = 300; // How far splitter can shoot
                     break;
             }
 
@@ -2882,6 +3174,7 @@
                     timeWarp: { active: false, remaining: 0, total: 5000 }
                 },
                 gameTimer: 0, // Add timer to track gameplay duration
+                mines: [], // <<< Add mines array
             };
             
             // Reset error state
@@ -4028,7 +4321,8 @@
                     ctx.fillStyle = COLORS.ENEMY.BOSS.CORE;
                     ctx.fill();
                 } else {
-                    // Draw normal enemy
+                    // Draw normal enemy (Default circle) - This block now handles HEALER, TURRET, etc.
+                    ctx.beginPath(); // Make sure path is reset
                     ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
                     const colorSet = COLORS.ENEMY[enemy.type] || COLORS.ENEMY.NORMAL;
                     ctx.fillStyle = colorSet.CORE;
@@ -4523,6 +4817,7 @@
                 safeExecute(drawParticles, "drawParticles");
                 safeExecute(drawFloatingTexts, "drawFloatingTexts");
                 safeExecute(drawUI, "drawUI");
+                safeExecute(drawMines, "drawMines"); // <<< Call drawMines
                 
                 // Draw game state messages
                 if (gameState.gameOver) {
