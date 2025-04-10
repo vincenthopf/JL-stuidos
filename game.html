@@ -1014,9 +1014,9 @@
             // Spawn enemies if not in a boss fight
             if (!gameState.waveComplete && 
                 !gameState.isBossFight && 
-                gameState.enemies.length < 5 && 
-                gameState.enemiesDefeated < gameState.enemiesPerWave) {
-                if (Math.random() < 0.02) {
+                gameState.enemies.length < (gameState.currentWave <= 5 ? 5 : 8) && // Wave-based enemy cap (5 for 1-5, 8 for 6+)
+                gameState.enemiesDefeated < gameState.enemiesPerWave) { 
+                if (Math.random() < 0.08) { // Increased spawn chance from 0.02 to 0.08 (8%)
                     spawnEnemy();
                 }
             }
@@ -1635,9 +1635,9 @@
 
         function updateEnemies() {
             // Spawn enemies
-            if (!gameState.waveComplete && !gameState.isBossFight && gameState.enemies.length < 5 && 
-                gameState.enemiesDefeated < gameState.enemiesPerWave) {
-                if (Math.random() < 0.02) {
+            if (!gameState.waveComplete && !gameState.isBossFight && gameState.enemies.length < (gameState.currentWave <= 5 ? 5 : 8) && // Wave-based enemy cap (5 for 1-5, 8 for 6+)
+                gameState.enemiesDefeated < gameState.enemiesPerWave) { 
+                if (Math.random() < 0.08) { // Increased spawn chance from 0.02 to 0.08 (8%)
                     spawnEnemy();
                 }
             }
