@@ -349,32 +349,32 @@
         // reducedEffects is defined elsewhere in the code
 
         // Initialize debug tools
-        window.functionExecutionTracker = {
-            enabled: false,
-            callStack: [],
-            trackCall: function(functionName, args) {
-                if (!this.enabled) return;
-                this.callStack.push({
-                    function: functionName,
-                    args: args,
-                    timestamp: Date.now()
-                });
-                // Keep stack at reasonable size
-                if (this.callStack.length > 100) {
-                    this.callStack.shift();
+            window.functionExecutionTracker = {
+                enabled: false,
+                callStack: [],
+                trackCall: function(functionName, args) {
+                    if (!this.enabled) return;
+                    this.callStack.push({
+                        function: functionName,
+                        args: args,
+                        timestamp: Date.now()
+                    });
+                    // Keep stack at reasonable size
+                    if (this.callStack.length > 100) {
+                        this.callStack.shift();
+                    }
+                },
+                getCallStack: function() {
+                    return this.callStack;
+                },
+                clear: function() {
+                    this.callStack = [];
                 }
-            },
-            getCallStack: function() {
-                return this.callStack;
-            },
-            clear: function() {
-                this.callStack = [];
-            }
-        };
+            };
 
         // Initialize debug breakpoints
-        window.debugBreakpoints = {};
-        
+            window.debugBreakpoints = {};
+
         // Set the document title
         document.title = "Bare Ball Buster";
         
@@ -895,9 +895,9 @@
         });
 
         canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            gameState.mousePos.x = e.clientX - rect.left;
-            gameState.mousePos.y = e.clientY - rect.top;
+                const rect = canvas.getBoundingClientRect();
+                gameState.mousePos.x = e.clientX - rect.left;
+                gameState.mousePos.y = e.clientY - rect.top;
         });
         canvas.addEventListener('mousedown', () => gameState.mouseDown = true);
         canvas.addEventListener('mouseup', () => gameState.mouseDown = false);
@@ -935,20 +935,20 @@
         }
 
         function drawGlow(x, y, radius, color) {
-            // Skip glow effects for off-screen elements
-            if (x < -radius || x > canvas.width + radius || 
-                y < -radius || y > canvas.height + radius) {
-                return;
-            }
-            
-            // Reduce the quality of glow effects for better performance
-            radius = Math.min(radius, 100); // Cap maximum radius
-            
-            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                // Skip glow effects for off-screen elements
+                if (x < -radius || x > canvas.width + radius || 
+                    y < -radius || y > canvas.height + radius) {
+                    return;
+                }
+                
+                // Reduce the quality of glow effects for better performance
+                radius = Math.min(radius, 100); // Cap maximum radius
+                
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
             gradient.addColorStop(0, color);
-            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
         }
 
         // Game update functions
@@ -974,8 +974,8 @@
                     spawnEnemy();
                 }
             }
-            
-            // Check if wave is complete
+                
+                // Check if wave is complete
             checkWaveComplete();
         }
 
@@ -1051,7 +1051,7 @@
             }
 
             // Trail
-            player.trail.push({x: player.x, y: player.y});
+                player.trail.push({x: player.x, y: player.y});
             if (player.trail.length > 10) player.trail.shift();
 
             // We've removed the trail checking here entirely - let checkForStuckKeys handle this
@@ -1277,8 +1277,8 @@
                 }
             }
             return true; // Keep the mine if no collision or not armed
-        });
-
+                });
+                
                 // Return false to remove the bullet if it hit an enemy
                 return !(hitEnemy  || hitMine);
             });
@@ -1369,7 +1369,7 @@
                 const playerPos = gameState.player ? `(${gameState.player.x.toFixed(1)}, ${gameState.player.y.toFixed(1)})` : 'N/A';
                 console.log(`Bullet Pos: (${bullet.x.toFixed(1)}, ${bullet.y.toFixed(1)}), Player Pos: ${playerPos}, Dist: ${dist.toFixed(1)}, Threshold: ${collisionThreshold.toFixed(1)} (PlayerSize: ${CONSTANTS.PLAYER.BASE_SIZE}, BulletSize: ${bulletSize})`);
                 // --- END DEBUGGING ---
-
+                
                 if (dist < CONSTANTS.PLAYER.BASE_SIZE + bulletSize * 0.5) {
                     console.log("Enemy bullet hit player collision detected!"); // DEBUG
                     // If shield is active, reduce shield instead of health
@@ -2670,36 +2670,36 @@ ctx.restore();
         }
 
         function updateParticles() {
-            // More aggressive particle management - this is often a major cause of slowdown
-            // Limit the number of particles based on how many enemies are on screen
+                // More aggressive particle management - this is often a major cause of slowdown
+                // Limit the number of particles based on how many enemies are on screen
             const maxParticles = 100 + Math.min(gameState.enemies.length * 20, 100);
-            if (gameState.particles.length > maxParticles) {
-                // Keep newest particles which are usually more relevant
-                gameState.particles = gameState.particles.slice(-maxParticles);
-            }
-            
-            gameState.particles = gameState.particles.filter(particle => {
-                particle.x += particle.dx;
-                particle.y += particle.dy;
-                particle.lifetime--;
-                particle.alpha = particle.lifetime / 30;
-                
-                // Remove particles that go off-screen to save processing
-                if (particle.x < 0 || particle.x > canvas.width || 
-                    particle.y < 0 || particle.y > canvas.height) {
-                    return false;
+                if (gameState.particles.length > maxParticles) {
+                    // Keep newest particles which are usually more relevant
+                    gameState.particles = gameState.particles.slice(-maxParticles);
                 }
                 
-                return particle.lifetime > 0;
-            });
-            
-            // Update shockwaves if they exist
-            if (gameState.shockwaves && gameState.shockwaves.length > 0) {
-                gameState.shockwaves = gameState.shockwaves.filter(shockwave => {
-                    shockwave.radius += (shockwave.maxRadius - shockwave.radius) * 0.2;
-                    shockwave.lifetime--;
-                    return shockwave.lifetime > 0;
+                gameState.particles = gameState.particles.filter(particle => {
+                    particle.x += particle.dx;
+                    particle.y += particle.dy;
+                    particle.lifetime--;
+                    particle.alpha = particle.lifetime / 30;
+                    
+                    // Remove particles that go off-screen to save processing
+                    if (particle.x < 0 || particle.x > canvas.width || 
+                        particle.y < 0 || particle.y > canvas.height) {
+                        return false;
+                    }
+                    
+                    return particle.lifetime > 0;
                 });
+                
+                // Update shockwaves if they exist
+                if (gameState.shockwaves && gameState.shockwaves.length > 0) {
+                    gameState.shockwaves = gameState.shockwaves.filter(shockwave => {
+                        shockwave.radius += (shockwave.maxRadius - shockwave.radius) * 0.2;
+                        shockwave.lifetime--;
+                        return shockwave.lifetime > 0;
+                    });
             }
         }
 
@@ -2799,7 +2799,7 @@ ctx.restore();
                         
                         // Play power-up collection sound
                         SoundManager.playSound('POWERUP_COLLECT', 0.6);
-
+                        
                         // Create visual explosion effect for power-up collection
                         let colorKey;
                         switch(powerUp.type) {
@@ -2921,8 +2921,8 @@ ctx.restore();
         
         function checkWaveComplete() {
             if (!gameState.waveComplete && gameState.enemiesDefeated >= gameState.enemiesPerWave) {
-                gameState.waveComplete = true;
-                
+                    gameState.waveComplete = true;
+                    
                 // Add a slight delay before showing the menu to prevent UI issues
                 setTimeout(() => {
                     // Check if all waves completed
@@ -2956,7 +2956,7 @@ ctx.restore();
                             // Show upgrade menu and pause the game
                             gamePaused = true;
                             showUpgradeMenu();
-                        } else {
+                            } else {
                             // Normal wave complete, show upgrade menu
                             gamePaused = true;
                             showUpgradeMenu();
@@ -2970,9 +2970,9 @@ ctx.restore();
                 
                 // Add a slight delay before showing the menu to prevent UI issues
                 setTimeout(() => {
-                    gameState.isBossFight = false;
-                    gameState.bossDefeated = false;
-                    
+                            gameState.isBossFight = false;
+                            gameState.bossDefeated = false;
+                            
                     // We'll increment the wave counter in startNextWave, so set a flag
                     gameState.justDefeatedBoss = true;
                     
@@ -3454,8 +3454,8 @@ ctx.restore();
         // Drawing functions
         function draw() {
             // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
             // Draw in specific order for layering
             drawBackground();
             drawStars();
@@ -3468,34 +3468,34 @@ ctx.restore();
             drawParticles();
             drawFloatingTexts(); // Draw floating text
             drawUI();
-            
-            // Draw pause indicator if game is paused
-            if (gamePaused && gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
-                ctx.save();
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                ctx.font = '48px "Orbitron", sans-serif';
-                ctx.fillStyle = '#FFFFFF';
-                ctx.textAlign = 'center';
-                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 30);
+                // Draw pause indicator if game is paused
+                if (gamePaused && gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                        ctx.save();
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        ctx.font = '48px "Orbitron", sans-serif';
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 30);
+                        
+                        ctx.font = '24px "Orbitron", sans-serif';
+                        ctx.fillText('Press L to resume', canvas.width / 2, canvas.height / 2 + 30);
+                        ctx.restore();
+                }
                 
-                ctx.font = '24px "Orbitron", sans-serif';
-                ctx.fillText('Press L to resume', canvas.width / 2, canvas.height / 2 + 30);
-                ctx.restore();
-            }
-            
-            // Draw game state messages
-            if (gameState.gameOver) {
+                // Draw game state messages
+                if (gameState.gameOver) {
                 drawGameOver();
-            } else if (gameState.gameWon) {
+                } else if (gameState.gameWon) {
                 drawGameWon();
-            }
-            
-            // Draw the menu when game is not started
-            if (!gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                }
+                
+                // Draw the menu when game is not started
+                        if (!gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
                 document.getElementById('waveSelectMenu').style.display = 'flex';
-            } else {
+                        } else {
                 document.getElementById('waveSelectMenu').style.display = 'none';
             }
         }
@@ -3516,69 +3516,69 @@ ctx.restore();
         }
 
         function drawParticles() {
-            // Safety check for particles (prevent error)
+                // Safety check for particles (prevent error)
             if (!gameState.particles || !Array.isArray(gameState.particles)) {
-                gameState.particles = [];
-                return;
-            }
-            
-            // Draw batch of particles instead of individually
-            const simpleParticles = [];
-            const glowParticles = [];
-            
-            // Split particles into glow and simple for batch processing
-            gameState.particles.forEach(particle => {
-                if (particle && particle.glow) {
-                    glowParticles.push(particle);
-                } else if (particle) {
-                    simpleParticles.push(particle);
+                        gameState.particles = [];
+                    return;
                 }
-            });
-            
-            // Draw glow particles (these are more expensive)
-            glowParticles.forEach(particle => {
-                try {
-                    // Skip invalid particles
-                    if (!particle || typeof particle.color !== 'string') return;
-                    
-                    // Apply reduced effects if needed
-                    if (reducedEffects && Math.random() > 0.5) return;
-                    
-                    // Safely replace color with alpha
-                    let colorWithAlpha;
-                    try {
-                        colorWithAlpha = particle.color.replace(')', `, ${particle.alpha * 0.5})`);
-                    } catch (e) {
-                        colorWithAlpha = 'rgba(255,255,255,0.5)';
+                
+                // Draw batch of particles instead of individually
+                const simpleParticles = [];
+                const glowParticles = [];
+                
+                // Split particles into glow and simple for batch processing
+                gameState.particles.forEach(particle => {
+                    if (particle && particle.glow) {
+                        glowParticles.push(particle);
+                    } else if (particle) {
+                        simpleParticles.push(particle);
                     }
-                    
+                });
+                
+                // Draw glow particles (these are more expensive)
+                glowParticles.forEach(particle => {
+                    try {
+                        // Skip invalid particles
+                        if (!particle || typeof particle.color !== 'string') return;
+                        
+                        // Apply reduced effects if needed
+                        if (reducedEffects && Math.random() > 0.5) return;
+                        
+                        // Safely replace color with alpha
+                        let colorWithAlpha;
+                        try {
+                            colorWithAlpha = particle.color.replace(')', `, ${particle.alpha * 0.5})`);
+                        } catch (e) {
+                            colorWithAlpha = 'rgba(255,255,255,0.5)';
+                        }
+                        
                     drawGlow(particle.x, particle.y, particle.size * 2, colorWithAlpha);
-                    
-                    ctx.beginPath();
+                        
+                        ctx.beginPath();
                     ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-                    ctx.fillStyle = particle.color.replace(')', `, ${particle.alpha})`);
-                    ctx.fill();
-                } catch (e) {
-                    // Silently ignore drawing errors for individual particles
-                    console.log("Particle draw error:", e);
-                }
-            });
-            
-            // Draw simple particles in batches for better performance
-            if (simpleParticles.length > 0) {
-                try {
-                    ctx.beginPath();
-                    simpleParticles.forEach(particle => {
+                        ctx.fillStyle = particle.color.replace(')', `, ${particle.alpha})`);
+                        ctx.fill();
+                    } catch (e) {
+                        // Silently ignore drawing errors for individual particles
+                        console.log("Particle draw error:", e);
+                    }
+                });
+                
+                // Draw simple particles in batches for better performance
+                if (simpleParticles.length > 0) {
+                    try {
+                        ctx.beginPath();
+                        simpleParticles.forEach(particle => {
                         if (!particle) return;
-                        ctx.moveTo(particle.x, particle.y);
-                        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-                    });
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                    ctx.fill();
-                } catch (e) {
-                    // Skip batch if there's an error
+                            ctx.moveTo(particle.x, particle.y);
+                            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                        });
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                        ctx.fill();
+                    } catch (e) {
+                        // Skip batch if there's an error
                     console.log("Simple particles batch error:", e);
-                }
+                    }
             }
         }
 
@@ -3637,7 +3637,7 @@ ctx.restore();
 
         function drawPlayer() {
             const player = gameState.player;
-
+            
             // Draw trail
             player.trail.forEach((pos, i) => {
                 // Safety check for trail length (prevents alpha=Infinity)
@@ -3648,7 +3648,7 @@ ctx.restore();
                 if (typeof pos.x === 'number' && isFinite(pos.x) && 
                     typeof pos.y === 'number' && isFinite(pos.y)) {
                     // Only draw if position is valid
-                    drawGlow(pos.x, pos.y, 20, `rgba(88, 161, 247, ${alpha * 0.2})`);
+                drawGlow(pos.x, pos.y, 20, `rgba(88, 161, 247, ${alpha * 0.2})`);
                 } 
                 // Removed the duplicate line that was here
             });
@@ -3745,7 +3745,7 @@ ctx.restore();
                 if (typeof player.x === 'number' && isFinite(player.x) &&
                     typeof player.y === 'number' && isFinite(player.y) &&
                     typeof shieldSize === 'number' && isFinite(shieldSize)) {
-                    drawGlow(player.x, player.y, shieldSize, 'rgba(88, 161, 247, 0.2)');
+                drawGlow(player.x, player.y, shieldSize, 'rgba(88, 161, 247, 0.2)');
                 }
                 // <<< END ADDED CHECK >>>
                 
@@ -3812,7 +3812,7 @@ ctx.restore();
                 typeof player.y === 'number' && isFinite(player.y) &&
                 typeof coreRadius === 'number' && isFinite(coreRadius)) {
                  drawGlow(player.x, player.y, coreRadius, 
-                         COLORS.PLAYER.GLOW.replace(')', ', 0.5)'));
+                    COLORS.PLAYER.GLOW.replace(')', ', 0.5)'));
             }
             // <<< END ADDED CHECK >>>
             
@@ -3825,13 +3825,13 @@ ctx.restore();
                 typeof coreDrawRadius === 'number' && isFinite(coreDrawRadius)) {
 
                 const gradient = ctx.createRadialGradient( // Direct call here
-                    player.x, player.y, 0,
+                player.x, player.y, 0,
                     player.x, player.y, coreDrawRadius
-                );
-                gradient.addColorStop(0, COLORS.PLAYER.CORE);
-                gradient.addColorStop(1, COLORS.PLAYER.GLOW);
-                ctx.fillStyle = gradient;
-                ctx.fill();
+            );
+            gradient.addColorStop(0, COLORS.PLAYER.CORE);
+            gradient.addColorStop(1, COLORS.PLAYER.GLOW);
+            ctx.fillStyle = gradient;
+            ctx.fill();
             }
             // ^^^ END WRAPPED BLOCK ^^^
             
@@ -4731,9 +4731,90 @@ ctx.restore();
     timeWarpActive: false 
 };
 gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON.parse(JSON.stringify(initialGameState));
-        function gameLoop(currentTime) {
-            // ... existing delta time calculation ...
+console.log('Game state immediately after init:', JSON.stringify(gameState, null, 2));        
 
+function gameLoop(currentTime) {
+    console.log('Game loop started. Time:', currentTime); // DEBUG LOG
+
+// Calculate time elapsed since last frame (delta time)
+if (!lastTime) {
+    lastTime = currentTime;
+}
+const deltaTime = (currentTime - lastTime);
+lastTime = currentTime;
+
+// If tab was inactive, deltaTime might be huge, cap it
+const cappedDeltaTime = Math.min(deltaTime, 100); // Cap at 100ms (10 FPS equivalent)
+
+// --- Apply Screen Shake (if implemented) ---
+let shakeX = 0;
+let shakeY = 0;
+if (gameState.screenShakeDuration > 0 && !gamePaused) {
+    shakeX = (Math.random() - 0.5) * 2 * gameState.screenShakeMagnitude;
+    shakeY = (Math.random() - 0.5) * 2 * gameState.screenShakeMagnitude;
+    gameState.screenShakeDuration--;
+    if (gameState.screenShakeDuration <= 0) {
+        gameState.screenShakeMagnitude = 0;
+    }
+}
+ctx.save(); // Save context before applying shake
+ctx.translate(shakeX, shakeY);
+
+// --- Update Game State ---
+// Only update if game is running and not paused
+if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
+    // Call your main update function (make sure updateGame exists)
+    if (typeof updateGame === 'function') {
+         safeExecute(updateGame, "updateGame", cappedDeltaTime); // Pass delta time
+    } else {
+         console.error("updateGame function is missing!");
+    }
+    // Update other things if needed
+        if (typeof updateStars === 'function') safeExecute(updateStars, "updateStars");
+        if (typeof updateFloatingTexts === 'function') safeExecute(updateFloatingTexts, "updateFloatingTexts");
+        if (typeof updateParticles === 'function') safeExecute(updateParticles, "updateParticles"); // Assuming you have this
+        // Update game timer
+        gameState.gameTimer += cappedDeltaTime;
+    }
+
+    // --- Draw Everything ---
+    // Use safeExecute to prevent errors from stopping the whole game
+    if (typeof drawBackground === 'function') safeExecute(drawBackground, "drawBackground"); else console.error("drawBackground missing");
+    if (typeof drawStars === 'function') safeExecute(drawStars, "drawStars"); else console.error("drawStars missing");
+    if (typeof drawObstacles === 'function') safeExecute(drawObstacles, "drawObstacles"); else console.error("drawObstacles missing");
+    if (typeof drawMines === 'function') safeExecute(drawMines, "drawMines"); else console.error("drawMines missing");
+    if (typeof drawPowerUps === 'function') safeExecute(drawPowerUps, "drawPowerUps"); else console.error("drawPowerUps missing");
+    if (typeof drawEnemyBullets === 'function') safeExecute(drawEnemyBullets, "drawEnemyBullets"); else console.error("drawEnemyBullets missing");
+    if (typeof drawEnemies === 'function') safeExecute(drawEnemies, "drawEnemies"); else console.error("drawEnemies missing");
+    if (typeof drawBullets === 'function') safeExecute(drawBullets, "drawBullets"); else console.error("drawBullets missing");
+    if (typeof drawPlayer === 'function') safeExecute(drawPlayer, "drawPlayer"); else console.error("drawPlayer missing");
+    if (typeof drawParticles === 'function') safeExecute(drawParticles, "drawParticles"); else console.error("drawParticles missing");
+    if (typeof drawShockwaves === 'function') safeExecute(drawShockwaves, "drawShockwaves"); // Don't error if missing, maybe optional
+    if (typeof drawFloatingTexts === 'function') safeExecute(drawFloatingTexts, "drawFloatingTexts"); else console.error("drawFloatingTexts missing");
+
+
+    // --- Restore Context After Shake ---
+    ctx.restore(); // Restore context to remove shake effect for subsequent draws (like UI)
+
+    // --- Draw UI (Should not be shaken) ---
+    if (typeof drawUI === 'function') safeExecute(drawUI, "drawUI"); else console.error("drawUI missing");
+    if (typeof drawDebugInfo === 'function' && debugMode) safeExecute(drawDebugInfo, "drawDebugInfo"); // Draw debug info if enabled
+
+
+    console.log('Game loop finished.'); // DEBUG LOG
+
+// --- Request Next Frame ---
+// Keep looping only if the game is not over or won
+if (!gameState.gameOver && !gameState.gameWon) {
+    requestAnimationFrame(gameLoop); // The "Go" button for the next frame
+} else {
+    // Game ended - maybe show a final message
+    console.log("Game loop stopped. Final State:", gameState.gameOver ? "Game Over" : "Game Won");
+    // You might want a final draw here to ensure the game over/win screen is shown
+    if (typeof drawUI === 'function') safeExecute(drawUI, "drawUI");
+}
+} // <--- This is the end of the function
+            // ... existing delta time calculation ...
             // --- Apply Screen Shake --- 
             let shakeX = 0;
             let shakeY = 0;
@@ -4755,20 +4836,20 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
 
     // Update game state only if game is running
     if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
-        safeExecute(updateGame, "updateGame");
-    }
-
+                    safeExecute(updateGame, "updateGame");
+                }
+                
     // Draw game elements in order
     safeExecute(drawBackground, "drawBackground");
-    safeExecute(drawStars, "drawStars");
-    safeExecute(drawObstacles, "drawObstacles");
+                safeExecute(drawStars, "drawStars");
+                safeExecute(drawObstacles, "drawObstacles");
     safeExecute(drawMines, "drawMines"); // Draw mines before enemies/player
-    safeExecute(drawPowerUps, "drawPowerUps");
+                safeExecute(drawPowerUps, "drawPowerUps");
     safeExecute(drawEnemyBullets, "drawEnemyBullets"); // Draw enemy bullets before enemies
-    safeExecute(drawEnemies, "drawEnemies");
+                safeExecute(drawEnemies, "drawEnemies");
     safeExecute(drawBullets, "drawBullets"); // Draw player bullets after enemies
     safeExecute(drawPlayer, "drawPlayer"); // Draw player last among game objects
-    safeExecute(drawParticles, "drawParticles");
+                safeExecute(drawParticles, "drawParticles");
     // Ensure drawShockwaves exists before calling
     if (typeof drawShockwaves === 'function') {
         safeExecute(drawShockwaves, "drawShockwaves");
@@ -4781,10 +4862,20 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
 
             // Draw UI (Should not be shaken)
             drawUI();
+            console.log('Game loop finished.'); // DEBUG LOG
 
-            // ... existing pause/game over checks and requestAnimationFrame ...
-        }
-
+// --- Request Next Frame ---
+// Keep looping only if the game is not over or won
+if (!gameState.gameOver && !gameState.gameWon) {
+    requestAnimationFrame(gameLoop); // The "Go" button for the next frame
+} else {
+    // Game ended - maybe show a final message
+    console.log("Game loop stopped. Final State:", gameState.gameOver ? "Game Over" : "Game Won");
+    // You might want a final draw here to ensure the game over/win screen is shown
+    if (typeof drawUI === 'function') safeExecute(drawUI, "drawUI");
+}
+        
+        
         // Handle visibility change to pause game when tab is inactive
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
@@ -4837,7 +4928,6 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
 
 // Initialize the main game state (use deepClone if available, otherwise simple copy)
 
-        requestAnimationFrame(gameLoop);
 
         // --- Ensure these functions are defined here ---
         function drawEnemyBullets() {
@@ -4971,7 +5061,7 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
             const seconds = totalSeconds % 60;
             return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
-
+        
         // Debug panel functionality
         document.addEventListener('DOMContentLoaded', function() {
             // Debug button event listener
@@ -4979,8 +5069,8 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
             if (debugBtn) {
                 debugBtn.addEventListener('click', function() {
                     debugMode = !debugMode;
-                    const debugPanel = document.getElementById('debugPanel');
-                    if (debugPanel) {
+                const debugPanel = document.getElementById('debugPanel');
+                if (debugPanel) {
                         debugPanel.style.display = debugMode ? 'block' : 'none';
                     }
                     this.textContent = debugMode ? 'Debug Mode: ON' : 'Debug Mode (Alt+D)';
@@ -5012,8 +5102,8 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
             }
             
             // Alt+D shortcut for debug mode
-            document.addEventListener('keydown', function(e) {
-                if (e.altKey && e.key.toLowerCase() === 'd') {
+        document.addEventListener('keydown', function(e) {
+            if (e.altKey && e.key.toLowerCase() === 'd') {
                     debugBtn.click(); // Simulate click on debug button
                 }
             });
@@ -5122,7 +5212,7 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
                 message: message,
                 error: error,
                 location: location || (error && error.stack ? error.stack.split('\n')[1] : 'Unknown'),
-                timestamp: Date.now()
+                            timestamp: Date.now()
             };
             
             // Add to errors array
@@ -5166,7 +5256,7 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
                 noErrors.className = 'no-errors';
                 noErrors.textContent = 'No errors recorded';
                 errorsSection.appendChild(noErrors);
-            } else {
+                        } else {
                 recentErrors.forEach(err => {
                     const errorItem = document.createElement('div');
                     errorItem.className = 'error-item';
@@ -5184,7 +5274,7 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
                 gamePaused = true;
-            } else {
+                } else {
                 gamePaused = false;
                 lastTime = 0; // Reset delta time to prevent huge jumps
             }
@@ -5202,8 +5292,8 @@ gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON
             }
             // If shake is less intense or shorter than current, ignore it
         }
-
         // Define the initial state of the game
+        requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html> 
