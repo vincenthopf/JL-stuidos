@@ -4742,7 +4742,63 @@ ctx.restore();
                 }
             }
         }
-
+        const initialGameState = {
+    gameStarted: true, // START IMMEDIATELY
+    gameOver: false,
+    gameWon: false,
+    currentWave: 1,
+    enemiesRemaining: 0,
+    score: 0,
+    player: {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        health: 100,
+        maxHealth: 100,
+        energy: 100,
+        maxEnergy: 100,
+        shield: 0, // Start with no shield
+        maxShield: 100,
+        bullets: [],
+        shootCooldown: 0,
+        level: { damage: 1, speed: 1, health: 1, energy: 1 },
+        upgradesAvailable: 0,
+        invulnerableTimer: 0,
+        hitFlash: 0,
+        trail: [],
+        // Added these in the previous manual instruction just in case:
+        velocity: { x: 0, y: 0 }, 
+        dashCooldown: 0 
+    },
+    enemies: [],
+    enemyBullets: [],
+    powerUps: [],
+    particles: [],
+    shockwaves: [],
+    floatingTexts: [],
+    obstacles: [], 
+    keys: {},
+    mousePos: { x: 0, y: 0 },
+    mouseDown: false,
+    spawnTimer: 0,
+    waveDelayTimer: 0,
+    isBossFight: false,
+    bossDefeated: false,
+    screenShakeMagnitude: 0,
+    screenShakeDuration: 0,
+    lastWaveAnnounced: 0,
+    gameTimer: 0,
+    mines: [],
+    // Added these in the previous manual instruction just in case:
+    activePowerUps: { 
+        shield: { active: false, remaining: 0, total: 10000 },
+        multiShot: { active: false, remaining: 0, total: 5000 },
+        speedBoost: { active: false, remaining: 0, total: 7000 },
+        rapidFire: { active: false, remaining: 0, total: 10000 }, 
+        timeWarp: { active: false, remaining: 0, total: 5000 }
+    },
+    timeWarpActive: false 
+};
+gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON.parse(JSON.stringify(initialGameState));
         function gameLoop(currentTime) {
             // ... existing delta time calculation ...
 
@@ -4845,65 +4901,10 @@ ctx.restore();
 
         // Start the game with the optimized loop
 // Define the initial state of the game
-const initialGameState = {
-    gameStarted: true, // START IMMEDIATELY
-    gameOver: false,
-    gameWon: false,
-    currentWave: 1,
-    enemiesRemaining: 0,
-    score: 0,
-    player: {
-        x: canvas.width / 2,
-        y: canvas.height / 2,
-        health: 100,
-        maxHealth: 100,
-        energy: 100,
-        maxEnergy: 100,
-        shield: 0, // Start with no shield
-        maxShield: 100,
-        bullets: [],
-        shootCooldown: 0,
-        level: { damage: 1, speed: 1, health: 1, energy: 1 },
-        upgradesAvailable: 0,
-        invulnerableTimer: 0,
-        hitFlash: 0,
-        trail: [],
-        // Added these in the previous manual instruction just in case:
-        velocity: { x: 0, y: 0 }, 
-        dashCooldown: 0 
-    },
-    enemies: [],
-    enemyBullets: [],
-    powerUps: [],
-    particles: [],
-    shockwaves: [],
-    floatingTexts: [],
-    obstacles: [], 
-    keys: {},
-    mousePos: { x: 0, y: 0 },
-    mouseDown: false,
-    spawnTimer: 0,
-    waveDelayTimer: 0,
-    isBossFight: false,
-    bossDefeated: false,
-    screenShakeMagnitude: 0,
-    screenShakeDuration: 0,
-    lastWaveAnnounced: 0,
-    gameTimer: 0,
-    mines: [],
-    // Added these in the previous manual instruction just in case:
-    activePowerUps: { 
-        shield: { active: false, remaining: 0, total: 10000 },
-        multiShot: { active: false, remaining: 0, total: 5000 },
-        speedBoost: { active: false, remaining: 0, total: 7000 },
-        rapidFire: { active: false, remaining: 0, total: 10000 }, 
-        timeWarp: { active: false, remaining: 0, total: 5000 }
-    },
-    timeWarpActive: false 
-};
+
 
 // Initialize the main game state (use deepClone if available, otherwise simple copy)
-gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON.parse(JSON.stringify(initialGameState));
+
         requestAnimationFrame(gameLoop);
 
         // --- Ensure these functions are defined here ---
