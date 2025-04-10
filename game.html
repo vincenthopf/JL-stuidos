@@ -456,13 +456,10 @@
 
             playSound(name, volume = 1, loop = false) {
                 console.log(`Attempting to play sound: ${name.toUpperCase()}`);
-                // <<< MODIFY THIS CHECK >>>
-                // Original check included: || !this.soundsReady
-                if (!this.audioContext || !this.sounds[name] || !this.sounds[name].buffer) { 
-                    console.warn(`Cannot play sound: ${name}. Context: ${!!this.audioContext}, Sound loaded: ${!!this.sounds[name]}, Buffer: ${!!this.sounds[name]?.buffer}, GlobalReadyFlag: ${this.soundsReady}`); // Added GlobalReadyFlag for info
+                if (!this.audioContext || !this.sounds[name] || !this.sounds[name].buffer || !this.soundsReady) {
+                    console.warn(`Cannot play sound: ${name}. Context: ${!!this.audioContext}, Sound loaded: ${!!this.sounds[name]}, Buffer: ${!!this.sounds[name]?.buffer}, Ready: ${this.soundsReady}`);
                     return;
                 }
-                // <<< END MODIFIED CHECK >>>
                 if (this.audioContext.state === 'suspended') {
                     console.warn("AudioContext suspended. Cannot play sound until user interaction.");
                     return; // Don't play if context is suspended
@@ -642,6 +639,71 @@
         };
 
         // Initialize game state
+        let gameState = {
+            player: {
+                x: window.innerWidth / 2,
+                y: window.innerHeight / 2,
+                speed: CONSTANTS.PLAYER.BASE_SPEED,
+                health: CONSTANTS.PLAYER.BASE_HEALTH,
+                maxHealth: CONSTANTS.PLAYER.BASE_HEALTH,
+                score: 0,
+                bullets: [],
+                dashCooldown: 0,
+                shootCooldown: 0,
+                energy: CONSTANTS.PLAYER.BASE_ENERGY,
+                maxEnergy: CONSTANTS.PLAYER.BASE_ENERGY,
+                trail: [],
+                powerUps: [],
+                shield: 0,
+                multiShot: false,
+                rapidFire: false,
+                speedBoostActive: false,
+                timeWarpActive: false,
+                stuckCounter: 0, // Add stuckCounter to prevent undefined errors
+                velocity: { x: 0, y: 0 }, // Restored velocity property
+                level: {
+                    damage: 1,
+                    speed: 1,
+                    health: 1,
+                    energy: 1
+                }
+            },
+            enemies: [],
+            powerUps: [],
+            obstacles: [],
+            currentWave: 1,
+            wavesTotal: 10,
+            enemiesPerWave: 10,
+            enemiesDefeated: 0,
+            waveComplete: false,
+            gameOver: false,
+            gameWon: false,
+            keys: {},
+            mousePos: { x: 0, y: 0 },
+            mouseDown: false,
+            particles: [],
+            enemyBullets: [],
+            selectedWave: 1,
+            gameStarted: false,
+            lastKeyPress: {},
+            isBossFight: false,
+            bossDefeated: false,
+            healthRestoredTime: 0,
+            floatingTexts: [],
+            timeWarpActive: false,
+            justDefeatedBoss: false, // Flag to prevent double wave increment
+            // Track power-up durations
+            activePowerUps: {
+                shield: { active: false, remaining: 0, total: 0 },
+                multiShot: { active: false, remaining: 0, total: 5000 },
+                speedBoost: { active: false, remaining: 0, total: 7000 },
+                rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
+                timeWarp: { active: false, remaining: 0, total: 5000 }
+            },
+            gameTimer: 0, // Add timer to track gameplay duration
+            mines: [], // <<< Add mines array
+        };
+
         // Secret code sequence tracking
         let secretCodeBuffer = [];
         let secretCodeTimeout = null;
@@ -903,22 +965,6 @@
         canvas.addEventListener('mouseup', () => gameState.mouseDown = false);
 
         // Utility functions
-
-        // <<< ADD THIS FUNCTION >>>
-        function deepClone(obj) {
-            // Simple deep clone using JSON stringify/parse
-            // Works for simple objects, arrays, primitives. Not for Dates, Functions, etc.
-            // Sufficient for gameState in this context.
-            try {
-                return JSON.parse(JSON.stringify(obj));
-            } catch (e) {
-                console.error("Deep Clone failed:", e);
-                // Fallback to shallow copy if JSON methods fail
-                return Object.assign({}, obj); 
-            }
-        }
-        // <<< END ADDED FUNCTION >>>
-
         function createParticle(x, y, color, speed, size, lifetime, glow = false) {
             const angle = Math.random() * Math.PI * 2;
             return {
@@ -1380,7 +1426,6 @@
                         // Play shield hit sound
                         console.log("Attempting to play SHIELD_HIT sound."); // DEBUG
                         SoundManager.playSound('SHIELD_HIT', 0.7);
-                        triggerScreenShake(3, 10); // Smaller shake for shield hit
                     } else {
                         console.log("Player shield is NOT active."); // DEBUG
                         // Bullets from boss deal more damage
@@ -1389,12 +1434,10 @@
                         // Play player hit sound
                         console.log("Attempting to play PLAYER_HIT sound."); // DEBUG
                         SoundManager.playSound('PLAYER_HIT', 0.8);
-                        triggerScreenShake(5, 15); // Bigger shake for direct hit
                         
                         // Check for game over
                         if (gameState.player.health <= 0) {
                             gameState.gameOver = true;
-                            triggerScreenShake(15, 60); // Big shake on death
                         }
                     }
                     
@@ -1408,7 +1451,7 @@
                         ));
                     }
                     
-                    return false; // Remove bullet
+                    return false;
                 }
                 
                 // Keep bullet
@@ -3069,7 +3112,70 @@ ctx.restore();
             resetKeyboardState();
             
             // Reset game state
-            gameState = deepClone(initialGameState);
+            gameState = {
+                player: {
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    speed: CONSTANTS.PLAYER.BASE_SPEED,
+                    health: CONSTANTS.PLAYER.BASE_HEALTH,
+                    maxHealth: CONSTANTS.PLAYER.BASE_HEALTH,
+                    score: 0,
+                    bullets: [],
+                    dashCooldown: 0,
+                    shootCooldown: 0,
+                    energy: CONSTANTS.PLAYER.BASE_ENERGY,
+                    maxEnergy: CONSTANTS.PLAYER.BASE_ENERGY,
+                    trail: [],
+                    powerUps: [],
+                    shield: 0,
+                    multiShot: false,
+                    rapidFire: false,
+                    speedBoostActive: false,
+                    timeWarpActive: false,
+                    stuckCounter: 0,
+                    velocity: { x: 0, y: 0 }, // Ensure velocity is initialized
+                    level: {
+                        damage: 1,
+                        speed: 1,
+                        health: 1,
+                        energy: 1
+                    }
+                },
+                enemies: [],
+                powerUps: [],
+                obstacles: [],
+                currentWave: 1,
+                wavesTotal: 10,
+                enemiesPerWave: 10,
+                enemiesDefeated: 0,
+                waveComplete: false,
+                gameOver: false,
+                gameWon: false,
+                particles: [],
+                shockwaves: [],
+                keys: {},
+                mousePos: { x: 0, y: 0 },
+                mouseDown: false,
+                enemyBullets: [],
+                selectedWave: 1,
+                gameStarted: true,
+                lastKeyPress: {},
+                isBossFight: false,
+                bossDefeated: false,
+                healthRestoredTime: 0,
+                floatingTexts: [],
+                timeWarpActive: false,
+                justDefeatedBoss: false, // Flag to prevent double wave increment
+                activePowerUps: {
+                    shield: { active: false, remaining: 0, total: 0 },
+                    multiShot: { active: false, remaining: 0, total: 5000 },
+                    speedBoost: { active: false, remaining: 0, total: 7000 },
+                    rapidFire: { active: false, remaining: 0, total: 10000 }, // Set to 10 seconds exactly
+                    timeWarp: { active: false, remaining: 0, total: 5000 }
+                },
+                gameTimer: 0, // Add timer to track gameplay duration
+                mines: [], // <<< Add mines array
+            };
             
             // Reset error state
             gamePaused = false;
@@ -3640,17 +3746,8 @@ ctx.restore();
             
             // Draw trail
             player.trail.forEach((pos, i) => {
-                // Safety check for trail length (prevents alpha=Infinity)
-                if (player.trail.length === 0) return; 
                 const alpha = i / player.trail.length;
-
-                // Safety check for pos.x and pos.y 
-                if (typeof pos.x === 'number' && isFinite(pos.x) && 
-                    typeof pos.y === 'number' && isFinite(pos.y)) {
-                    // Only draw if position is valid
                 drawGlow(pos.x, pos.y, 20, `rgba(88, 161, 247, ${alpha * 0.2})`);
-                } 
-                // Removed the duplicate line that was here
             });
             
             // Special effect for speed boost: energy field and particles
@@ -3741,13 +3838,7 @@ ctx.restore();
                 const pulseAmount = 0.1 * Math.sin(Date.now() / 100); // Subtle pulsing
                 const baseShieldSize = CONSTANTS.PLAYER.BASE_SIZE + 20;
                 const shieldSize = baseShieldSize + pulseAmount * 10;
-                // <<< ADD SAFETY CHECK >>>
-                if (typeof player.x === 'number' && isFinite(player.x) &&
-                    typeof player.y === 'number' && isFinite(player.y) &&
-                    typeof shieldSize === 'number' && isFinite(shieldSize)) {
                 drawGlow(player.x, player.y, shieldSize, 'rgba(88, 161, 247, 0.2)');
-                }
-                // <<< END ADDED CHECK >>>
                 
                 // Draw orbiting shield rings
                 ctx.save();
@@ -3806,34 +3897,19 @@ ctx.restore();
             }
 
             // Draw player core
-            // <<< ADD SAFETY CHECK >>>
-            const coreRadius = CONSTANTS.PLAYER.BASE_SIZE;
-            if (typeof player.x === 'number' && isFinite(player.x) &&
-                typeof player.y === 'number' && isFinite(player.y) &&
-                typeof coreRadius === 'number' && isFinite(coreRadius)) {
-                 drawGlow(player.x, player.y, coreRadius, 
+            drawGlow(player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE, 
                     COLORS.PLAYER.GLOW.replace(')', ', 0.5)'));
-            }
-            // <<< END ADDED CHECK >>>
             
             ctx.beginPath();
             ctx.arc(player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE/2, 0, Math.PI * 2);
-            // Check before creating gradient
-            const coreDrawRadius = CONSTANTS.PLAYER.BASE_SIZE/2;
-            if (typeof player.x === 'number' && isFinite(player.x) &&
-                typeof player.y === 'number' && isFinite(player.y) &&
-                typeof coreDrawRadius === 'number' && isFinite(coreDrawRadius)) {
-
-                const gradient = ctx.createRadialGradient( // Direct call here
+            const gradient = ctx.createRadialGradient(
                 player.x, player.y, 0,
-                    player.x, player.y, coreDrawRadius
+                player.x, player.y, CONSTANTS.PLAYER.BASE_SIZE/2
             );
             gradient.addColorStop(0, COLORS.PLAYER.CORE);
             gradient.addColorStop(1, COLORS.PLAYER.GLOW);
             ctx.fillStyle = gradient;
             ctx.fill();
-            }
-            // ^^^ END WRAPPED BLOCK ^^^
             
             // ===== POWER-UP VISUAL ACCESSORIES =====
             
@@ -4674,207 +4750,127 @@ ctx.restore();
                 }
             }
         }
-        const initialGameState = {
-    gameStarted: true, // START IMMEDIATELY
-    gameOver: false,
-    gameWon: false,
-    currentWave: 1,
-    enemiesRemaining: 0,
-    score: 0,
-    player: {
-        x: canvas.width / 2,
-        y: canvas.height / 2,
-        health: 100,
-        maxHealth: 100,
-        energy: 100,
-        maxEnergy: 100,
-        shield: 0, // Start with no shield
-        maxShield: 100,
-        bullets: [],
-        shootCooldown: 0,
-        level: { damage: 1, speed: 1, health: 1, energy: 1 },
-        upgradesAvailable: 0,
-        invulnerableTimer: 0,
-        hitFlash: 0,
-        trail: [],
-        // Added these in the previous manual instruction just in case:
-        velocity: { x: 0, y: 0 }, 
-        dashCooldown: 0 
-    },
-    enemies: [],
-    enemyBullets: [],
-    powerUps: [],
-    particles: [],
-    shockwaves: [],
-    floatingTexts: [],
-    obstacles: [], 
-    keys: {},
-    mousePos: { x: 0, y: 0 },
-    mouseDown: false,
-    spawnTimer: 0,
-    waveDelayTimer: 0,
-    isBossFight: false,
-    bossDefeated: false,
-    screenShakeMagnitude: 0,
-    screenShakeDuration: 0,
-    lastWaveAnnounced: 0,
-    gameTimer: 0,
-    mines: [],
-    // Added these in the previous manual instruction just in case:
-    activePowerUps: { 
-        shield: { active: false, remaining: 0, total: 10000 },
-        multiShot: { active: false, remaining: 0, total: 5000 },
-        speedBoost: { active: false, remaining: 0, total: 7000 },
-        rapidFire: { active: false, remaining: 0, total: 10000 }, 
-        timeWarp: { active: false, remaining: 0, total: 5000 }
-    },
-    timeWarpActive: false 
-};
-gameState = typeof deepClone === 'function' ? deepClone(initialGameState) : JSON.parse(JSON.stringify(initialGameState));
-console.log('Game state immediately after init:', JSON.stringify(gameState, null, 2));        
 
-function gameLoop(currentTime) {
-    console.log('Game loop started. Time:', currentTime); // DEBUG LOG
+        function gameLoop(timestamp) {
+            // Record frame start time for performance monitoring
+            const frameStartTime = performance.now();
+            
+            try {
+                // Calculate delta time for smooth animations
+                if (!lastTime) lastTime = timestamp;
+                const deltaTime = timestamp - lastTime;
+                lastTime = timestamp;
 
-// Calculate time elapsed since last frame (delta time)
-if (!lastTime) {
-    lastTime = currentTime;
-}
-const deltaTime = (currentTime - lastTime);
-lastTime = currentTime;
-
-// If tab was inactive, deltaTime might be huge, cap it
-const cappedDeltaTime = Math.min(deltaTime, 100); // Cap at 100ms (10 FPS equivalent)
-
-// --- Apply Screen Shake (if implemented) ---
-let shakeX = 0;
-let shakeY = 0;
-if (gameState.screenShakeDuration > 0 && !gamePaused) {
-    shakeX = (Math.random() - 0.5) * 2 * gameState.screenShakeMagnitude;
-    shakeY = (Math.random() - 0.5) * 2 * gameState.screenShakeMagnitude;
-    gameState.screenShakeDuration--;
-    if (gameState.screenShakeDuration <= 0) {
-        gameState.screenShakeMagnitude = 0;
-    }
-}
-ctx.save(); // Save context before applying shake
-ctx.translate(shakeX, shakeY);
-
-// --- Update Game State ---
-// Only update if game is running and not paused
-if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
-    // Call your main update function (make sure updateGame exists)
-    if (typeof updateGame === 'function') {
-         safeExecute(updateGame, "updateGame", cappedDeltaTime); // Pass delta time
-    } else {
-         console.error("updateGame function is missing!");
-    }
-    // Update other things if needed
-        if (typeof updateStars === 'function') safeExecute(updateStars, "updateStars");
-        if (typeof updateFloatingTexts === 'function') safeExecute(updateFloatingTexts, "updateFloatingTexts");
-        if (typeof updateParticles === 'function') safeExecute(updateParticles, "updateParticles"); // Assuming you have this
-        // Update game timer
-        gameState.gameTimer += cappedDeltaTime;
-    }
-
-    // --- Draw Everything ---
-    // Use safeExecute to prevent errors from stopping the whole game
-    if (typeof drawBackground === 'function') safeExecute(drawBackground, "drawBackground"); else console.error("drawBackground missing");
-    if (typeof drawStars === 'function') safeExecute(drawStars, "drawStars"); else console.error("drawStars missing");
-    if (typeof drawObstacles === 'function') safeExecute(drawObstacles, "drawObstacles"); else console.error("drawObstacles missing");
-    if (typeof drawMines === 'function') safeExecute(drawMines, "drawMines"); else console.error("drawMines missing");
-    if (typeof drawPowerUps === 'function') safeExecute(drawPowerUps, "drawPowerUps"); else console.error("drawPowerUps missing");
-    if (typeof drawEnemyBullets === 'function') safeExecute(drawEnemyBullets, "drawEnemyBullets"); else console.error("drawEnemyBullets missing");
-    if (typeof drawEnemies === 'function') safeExecute(drawEnemies, "drawEnemies"); else console.error("drawEnemies missing");
-    if (typeof drawBullets === 'function') safeExecute(drawBullets, "drawBullets"); else console.error("drawBullets missing");
-    if (typeof drawPlayer === 'function') safeExecute(drawPlayer, "drawPlayer"); else console.error("drawPlayer missing");
-    if (typeof drawParticles === 'function') safeExecute(drawParticles, "drawParticles"); else console.error("drawParticles missing");
-    if (typeof drawShockwaves === 'function') safeExecute(drawShockwaves, "drawShockwaves"); // Don't error if missing, maybe optional
-    if (typeof drawFloatingTexts === 'function') safeExecute(drawFloatingTexts, "drawFloatingTexts"); else console.error("drawFloatingTexts missing");
-
-
-    // --- Restore Context After Shake ---
-    ctx.restore(); // Restore context to remove shake effect for subsequent draws (like UI)
-
-    // --- Draw UI (Should not be shaken) ---
-    if (typeof drawUI === 'function') safeExecute(drawUI, "drawUI"); else console.error("drawUI missing");
-    if (typeof drawDebugInfo === 'function' && debugMode) safeExecute(drawDebugInfo, "drawDebugInfo"); // Draw debug info if enabled
-
-
-    console.log('Game loop finished.'); // DEBUG LOG
-
-// --- Request Next Frame ---
-// Keep looping only if the game is not over or won
-if (!gameState.gameOver && !gameState.gameWon) {
-    requestAnimationFrame(gameLoop); // The "Go" button for the next frame
-} else {
-    // Game ended - maybe show a final message
-    console.log("Game loop stopped. Final State:", gameState.gameOver ? "Game Over" : "Game Won");
-    // You might want a final draw here to ensure the game over/win screen is shown
-    if (typeof drawUI === 'function') safeExecute(drawUI, "drawUI");
-}
-} // <--- This is the end of the function
-            // ... existing delta time calculation ...
-            // --- Apply Screen Shake --- 
-            let shakeX = 0;
-            let shakeY = 0;
-            if (gameState.screenShakeDuration > 0) {
-                shakeX = (Math.random() - 0.5) * 2 * gameState.screenShakeMagnitude;
-                shakeY = (Math.random() - 0.5) * 2 * gameState.screenShakeMagnitude;
-                
-                // Decrease duration and magnitude
-                gameState.screenShakeDuration--;
-                if (gameState.screenShakeDuration <= 0) {
-                    gameState.screenShakeMagnitude = 0;
+                // Update game timer when game is running
+                if (gameState.gameStarted && !gamePaused && !gameState.gameOver && !gameState.gameWon) {
+                    gameState.gameTimer += deltaTime;
                 }
-            }
-            ctx.save(); // Save context before applying shake
-            ctx.translate(shakeX, shakeY);
-             // --- ADD THESE LINES BACK ---
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Update game state only if game is running
-    if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
+                
+                // FPS monitoring
+                frameCount++;
+                fpsTimer += deltaTime;
+                
+                if (fpsTimer > 1000) {
+                    // If FPS drops below 30, reduce particle effects
+                    const fps = frameCount / (fpsTimer / 1000);
+                    if (fps < 30) {
+                        // Auto-tune performance settings
+                        reducedEffects = true;
+                    } else {
+                        reducedEffects = false;
+                    }
+                    
+                    // Reset FPS counter
+                    frameCount = 0;
+                    fpsTimer = 0;
+                }
+                
+                // Skip frame if running too slow (prevents spiral of death)
+                if (deltaTime > 100) {
+                    window.gameLoopId = requestAnimationFrame(gameLoop);
+                    return;
+                }
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Check for stuck keys much less frequently
+                if (Math.random() < 0.01) { // Only check 1% of frames
+                    safeExecute(detectStuckKeys, "detectStuckKeys");
+                    safeExecute(checkForStuckKeys, "checkForStuckKeys");
+                }
+                
+                // Process game logic and render
+                if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
                     safeExecute(updateGame, "updateGame");
                 }
                 
-    // Draw game elements in order
-    safeExecute(drawBackground, "drawBackground");
+                // Draw everything using safeExecute to prevent crashes
+                safeExecute(drawBackground, "drawBackground");
                 safeExecute(drawStars, "drawStars");
                 safeExecute(drawObstacles, "drawObstacles");
-    safeExecute(drawMines, "drawMines"); // Draw mines before enemies/player
                 safeExecute(drawPowerUps, "drawPowerUps");
-    safeExecute(drawEnemyBullets, "drawEnemyBullets"); // Draw enemy bullets before enemies
                 safeExecute(drawEnemies, "drawEnemies");
-    safeExecute(drawBullets, "drawBullets"); // Draw player bullets after enemies
-    safeExecute(drawPlayer, "drawPlayer"); // Draw player last among game objects
+                safeExecute(drawPlayer, "drawPlayer");
+                safeExecute(drawBullets, "drawBullets");
+                safeExecute(drawEnemyBullets, "drawEnemyBullets");
                 safeExecute(drawParticles, "drawParticles");
-    // Ensure drawShockwaves exists before calling
-    if (typeof drawShockwaves === 'function') {
-        safeExecute(drawShockwaves, "drawShockwaves");
-    }
-    safeExecute(drawFloatingTexts, "drawFloatingTexts");
-    // --- END ADDED LINES ---
-            // --- Restore Context After Shake ---
-            ctx.restore(); // Restore context to remove shake effect for subsequent draws (like UI)
-            // --- End Restore Context ---
-
-            // Draw UI (Should not be shaken)
-            drawUI();
-            console.log('Game loop finished.'); // DEBUG LOG
-
-// --- Request Next Frame ---
-// Keep looping only if the game is not over or won
-if (!gameState.gameOver && !gameState.gameWon) {
-    requestAnimationFrame(gameLoop); // The "Go" button for the next frame
-} else {
-    // Game ended - maybe show a final message
-    console.log("Game loop stopped. Final State:", gameState.gameOver ? "Game Over" : "Game Won");
-    // You might want a final draw here to ensure the game over/win screen is shown
-    if (typeof drawUI === 'function') safeExecute(drawUI, "drawUI");
-}
-        
+                safeExecute(drawFloatingTexts, "drawFloatingTexts");
+                safeExecute(drawUI, "drawUI");
+                safeExecute(drawMines, "drawMines"); // <<< Call drawMines
+                
+                // Draw game state messages
+                if (gameState.gameOver) {
+                    safeExecute(drawGameOver, "drawGameOver");
+                } else if (gameState.gameWon) {
+                    safeExecute(drawGameWon, "drawGameWon");
+                }
+                
+                // Draw the menu when game is not started
+                if (!gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                    document.getElementById('waveSelectMenu').style.display = 'flex';
+                } else {
+                    document.getElementById('waveSelectMenu').style.display = 'none';
+                }
+                
+                // Draw debug info if enabled
+                if (debugMode) {
+                    safeExecute(drawDebugInfo, "drawDebugInfo");
+                }
+                
+                // Calculate and track frame time for performance monitoring
+                const frameTime = performance.now() - frameStartTime;
+                if (debugMode && typeof frameTimeHistory !== 'undefined') {
+                    frameTimeHistory.push(frameTime);
+                    if (frameTimeHistory.length > 60) {
+                        frameTimeHistory.shift();
+                    }
+                }
+                
+            } catch (error) {
+                // Error recovery - likely game state corruption
+                console.error("Game error:", error);
+                showError("Game Loop Error", error);
+                
+                // Show recovery UI
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'red';
+                ctx.font = '24px "Segoe UI"';
+                ctx.textAlign = 'center';
+                ctx.fillText('Game Error Detected: ' + error.message, canvas.width/2, canvas.height/2 - 40);
+            ctx.fillStyle = 'white';
+                ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2);
+                ctx.textAlign = 'left';
+                
+                // Reset game state on error
+                gamePaused = true;
+                resetKeyboardState();
+            }
+            
+            // Loop with a reference we can cancel if needed
+            window.gameLoopId = requestAnimationFrame(gameLoop);
+        }
         
         // Handle visibility change to pause game when tab is inactive
         document.addEventListener('visibilitychange', function() {
@@ -4923,11 +4919,7 @@ if (!gameState.gameOver && !gameState.gameWon) {
         }
 
         // Start the game with the optimized loop
-// Define the initial state of the game
-
-
-// Initialize the main game state (use deepClone if available, otherwise simple copy)
-
+        requestAnimationFrame(gameLoop);
 
         // --- Ensure these functions are defined here ---
         function drawEnemyBullets() {
@@ -5271,29 +5263,6 @@ if (!gameState.gameOver && !gameState.gameWon) {
         }
 
         // Handle visibility change to pause game when tab is inactive
-        document.addEventListener('visibilitychange', function() {
-            if (document.hidden) {
-                gamePaused = true;
-                } else {
-                gamePaused = false;
-                lastTime = 0; // Reset delta time to prevent huge jumps
-            }
-        });
-
-        // Helper function to trigger screen shake
-        function triggerScreenShake(magnitude, duration) {
-            // Don't override a more intense shake with a weaker one
-            if (magnitude > gameState.screenShakeMagnitude) {
-                gameState.screenShakeMagnitude = magnitude;
-                gameState.screenShakeDuration = duration;
-            } else if (magnitude === gameState.screenShakeMagnitude && duration > gameState.screenShakeDuration) {
-                // Extend duration if magnitude is the same
-                gameState.screenShakeDuration = duration;
-            }
-            // If shake is less intense or shorter than current, ignore it
-        }
-        // Define the initial state of the game
-        requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html> 
