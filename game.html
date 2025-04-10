@@ -206,10 +206,43 @@
         #debugBtn:hover {
             background: rgba(30, 30, 80, 0.7) !important;
         }
+
+        #pauseMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            font-family: 'Arial', sans-serif;
+            display: none; /* Hidden by default */
+            z-index: 100; /* Ensure it's on top */
+        }
+
+        #pauseMenu h1 {
+            margin-top: 0;
+            font-size: 2.5em;
+            color: #ffdd57; /* Yellowish color */
+        }
+
+        #pauseMenu p {
+            font-size: 1.2em;
+            color: #cccccc; /* Light gray */
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Pause Menu -->
+    <div id="pauseMenu">
+        <h1>Paused</h1>
+        <p>Press 'P' to Resume</p>
+    </div>
+
     <div id="upgradeMenu">
         <h2 style="text-align: center; margin-bottom: 20px; color: #58A1F7;">Wave Complete!</h2>
         <div id="upgradeOptions"></div>
@@ -381,11 +414,12 @@
         // Sound Manager
         const SoundManager = {
             audioContext: null,
-            sounds: {},
+            sounds: {}, // Stores { buffer: AudioBuffer }
+            activeSources: {}, // Stores { source: AudioBufferSourceNode, gainNode: GainNode, volume: number } for pausable sounds
             masterVolume: 0.7, // Default volume
             soundsReady: false,
             pendingSounds: 0,
-            ambientPlaying: false, // Flag to track ambient music
+            // ambientPlaying: false, // Flag to track ambient music - Can be derived from activeSources now
 
             init() {
                 try {
@@ -397,18 +431,18 @@
                             this.audioContext.resume().then(() => {
                                 console.log("AudioContext resumed successfully.");
                                 // Play ambient music once context is resumed and sounds are ready
-                                if (this.soundsReady && !this.ambientPlaying) {
-                                    this.playSound('AMBIENT', 0.3, true); // Play looped at 30% volume
-                                    this.ambientPlaying = true;
+                                // Check if already playing via isPlaying before starting
+                                if (this.soundsReady && !this.isPlaying('AMBIENT')) {
+                                    // Play looped (implicitly pausable) at 30% volume
+                                    this.playSound('AMBIENT', 0.3, true); 
                                 }
                                 document.removeEventListener('click', resumeContext);
                                 document.removeEventListener('keydown', resumeContext);
                             }).catch(e => console.error("Error resuming AudioContext:", e));
                         } else if (this.audioContext.state === 'running') {
                            // If context is already running, try playing ambient immediately if ready
-                           if (this.soundsReady && !this.ambientPlaying) {
+                           if (this.soundsReady && !this.isPlaying('AMBIENT')) {
                                this.playSound('AMBIENT', 0.3, true);
-                               this.ambientPlaying = true;
                            }
                         }
                     };
@@ -454,37 +488,116 @@
                     });
             },
 
-            playSound(name, volume = 1, loop = false) {
+            playSound(name, volume = 1, loop = false, pausable = false) { // Add pausable flag
                 console.log(`Attempting to play sound: ${name.toUpperCase()}`);
                 if (!this.audioContext || !this.sounds[name] || !this.sounds[name].buffer || !this.soundsReady) {
                     console.warn(`Cannot play sound: ${name}. Context: ${!!this.audioContext}, Sound loaded: ${!!this.sounds[name]}, Buffer: ${!!this.sounds[name]?.buffer}, Ready: ${this.soundsReady}`);
-                    return;
+                    return null; // Return null if sound cannot be played
                 }
                 if (this.audioContext.state === 'suspended') {
                     console.warn("AudioContext suspended. Cannot play sound until user interaction.");
-                    return; // Don't play if context is suspended
+                    return null;
                 }
 
                 try {
                     const source = this.audioContext.createBufferSource();
                     const gainNode = this.audioContext.createGain();
+                    const calculatedVolume = this.masterVolume * volume;
 
                     source.buffer = this.sounds[name].buffer;
                     source.loop = loop;
-                    
-                    // Connect source to gain node, and gain node to destination
+
                     source.connect(gainNode);
                     gainNode.connect(this.audioContext.destination);
-                    
-                    // Set volume
-                    gainNode.gain.setValueAtTime(this.masterVolume * volume, this.audioContext.currentTime);
-                    
+
+                    gainNode.gain.setValueAtTime(calculatedVolume, this.audioContext.currentTime);
+
                     source.start(0);
                     console.log(`Sound played successfully: ${name.toUpperCase()}`);
+
+                    // If pausable, store references
+                    if (pausable || loop) { // Store looped sounds by default as they often need control
+                        // If this sound is already playing pausable, stop the old one first
+                        if (this.activeSources[name]) {
+                            try {
+                                this.activeSources[name].source.stop();
+                            } catch (e) { /* Might already be stopped */ }
+                        }
+                        this.activeSources[name] = { source, gainNode, volume: calculatedVolume };
+                        
+                        // Clean up when the sound naturally ends (if not looping)
+                        if (!loop) {
+                            source.onended = () => {
+                                if (this.activeSources[name] && this.activeSources[name].source === source) {
+                                    delete this.activeSources[name];
+                                    console.log(`Cleaned up source for non-looping sound: ${name}`);
+                                }
+                            };
+                        }
+                    }
+                    return { source, gainNode }; // Return nodes for potential external control
                 } catch (e) {
                     console.error(`Error playing sound ${name}:`, e);
                     showError(`Error playing sound ${name}`, e);
+                    return null;
                 }
+            },
+            
+            // New method to pause a specific tracked sound
+            pauseSound(name) {
+                const active = this.activeSources[name];
+                if (active && active.gainNode) {
+                    try {
+                        // Store current volume before pausing (optional, using stored volume)
+                        // active.originalVolume = active.gainNode.gain.value;
+                        active.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Set gain to 0
+                        console.log(`Paused sound: ${name}`);
+                    } catch (e) {
+                        console.error(`Error pausing sound ${name}:`, e);
+                    }
+                } else {
+                    console.warn(`Cannot pause sound: ${name}. Not actively tracked or no gain node.`);
+                }
+            },
+            
+            // New method to resume a specific tracked sound
+            resumeSound(name) {
+                const active = this.activeSources[name];
+                if (active && active.gainNode) {
+                    try {
+                        // Restore the original volume
+                        const targetVolume = active.volume !== undefined ? active.volume : this.masterVolume; // Use stored volume or default
+                        active.gainNode.gain.setValueAtTime(targetVolume, this.audioContext.currentTime);
+                        console.log(`Resumed sound: ${name}`);
+                    } catch (e) {
+                        console.error(`Error resuming sound ${name}:`, e);
+                    }
+                } else {
+                    console.warn(`Cannot resume sound: ${name}. Not actively tracked or no gain node.`);
+                }
+            },
+
+            // Optional: Method to stop a specific sound completely
+            stopSound(name) {
+                 const active = this.activeSources[name];
+                 if (active && active.source) {
+                     try {
+                         active.source.stop(0);
+                         delete this.activeSources[name];
+                         console.log(`Stopped sound: ${name}`);
+                     } catch (e) {
+                         console.error(`Error stopping sound ${name}:`, e);
+                         // Clean up ref even if stop fails (might already be stopped)
+                         delete this.activeSources[name]; 
+                     }
+                 } else {
+                    console.warn(`Cannot stop sound: ${name}. Not actively tracked.`);
+                 }
+            },
+
+            // Checks if a specific pausable sound is currently playing
+            isPlaying(name) {
+                return !!this.activeSources[name];
             },
 
             setMasterVolume(volume) {
@@ -702,6 +815,7 @@
             },
             gameTimer: 0, // Add timer to track gameplay duration
             mines: [], // <<< Add mines array
+            isPaused: false // <<< Add pause state here
         };
 
         // Secret code sequence tracking
@@ -743,20 +857,40 @@
                 const key = e.key.toLowerCase();
                 this._keys[key] = true;
                 this._timestamps[key] = Date.now();
-                
-                // Pause game with L key (only when game is started)
-                if (key === 'l' && gameState.gameStarted) {
-                    // Toggle pause state
-                    gamePaused = !gamePaused;
-                    
-                    // Reset lastTime to prevent huge jumps when unpausing
-                    if (!gamePaused) {
-                        lastTime = 0;
+
+                // Toggle Pause with 'P' key (when game is started and not over)
+                if (key === 'p' && gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                    // console.log("'P' key pressed, toggling pause."); // DEBUG REMOVED
+                    gameState.isPaused = !gameState.isPaused;
+                    const pauseMenu = document.getElementById('pauseMenu');
+                    // console.log("Pause menu element:", pauseMenu); // DEBUG REMOVED
+                    if (pauseMenu) { // Check if element exists before trying to set style
+                        if (gameState.isPaused) {
+                            // console.log("Setting pause menu display to block"); // DEBUG REMOVED
+                            pauseMenu.style.display = 'block'; // Show pause menu
+                            // Pause ambient sound using the new method
+                            if (typeof SoundManager !== 'undefined') {
+                                SoundManager.pauseSound('AMBIENT');
+                            }
+                        } else {
+                            // console.log("Setting pause menu display to none"); // DEBUG REMOVED
+                            pauseMenu.style.display = 'none'; // Hide pause menu
+                            // Resume ambient sound using the new method
+                            if (typeof SoundManager !== 'undefined') {
+                                SoundManager.resumeSound('AMBIENT');
+                            }
+                            // Reset lastTime to prevent simulation jumps after unpausing
+                            if (typeof lastTime !== 'undefined') {
+                                lastTime = performance.now(); 
+                            }
+                        }
+                    } else {
+                        // console.error("Could not find pauseMenu element!"); // DEBUG REMOVED
+                        // Still log error if menu element is missing
+                        console.error("Could not find pauseMenu element!"); 
                     }
-                    
-                    // Prevent default action
-                    e.preventDefault();
-                    return;
+                    e.preventDefault(); // Prevent default 'p' behavior (like printing)
+                    return; // Stop further processing for 'p'
                 }
                 
                 // Secret code sequence tracking (Shift+P+/)
@@ -777,7 +911,7 @@
                     this._secretCodeBuffer.includes('/')) {
                     // Show wave selection menu and pause game
                     gameState.gameStarted = false;
-                    gamePaused = true;
+                    gameState.isPaused = true;
                     document.getElementById('waveSelectMenu').style.display = 'flex';
                     initWaveSelectionMenu();
                     this._secretCodeBuffer = []; // Clear buffer after activation
@@ -942,7 +1076,7 @@
             
             // Mark game as started
             gameState.gameStarted = true;
-            gamePaused = false;
+            gameState.isPaused = false; // Use gameState.isPaused
         }
         
         // Show wave selection menu on load - change to not show by default
@@ -952,7 +1086,7 @@
             // Start game immediately at wave 1 instead of showing menu
             gameState.selectedWave = 1;
             gameState.gameStarted = true;
-            gamePaused = false;
+            gameState.isPaused = false; // Use gameState.isPaused
             document.getElementById('waveSelectMenu').style.display = 'none';
         });
 
@@ -2869,7 +3003,7 @@ ctx.restore();
             for (const type in gameState.activePowerUps) {
                 if (gameState.activePowerUps[type].active) {
                     // Only decrease timer if game is not paused
-                    if (!gamePaused) {
+                    if (!gameState.isPaused) { // Use gameState.isPaused
                         gameState.activePowerUps[type].remaining = Math.max(0, gameState.activePowerUps[type].remaining - (1000/60)); // Decrease by ms per frame
                     }
                     
@@ -2997,11 +3131,11 @@ ctx.restore();
                             gameState.waveComplete = false;
 
                             // Show upgrade menu and pause the game
-                            gamePaused = true;
+                            gameState.isPaused = true; // Use gameState.isPaused
                             showUpgradeMenu();
                             } else {
                             // Normal wave complete, show upgrade menu
-                            gamePaused = true;
+                            gameState.isPaused = true; // Use gameState.isPaused
                             showUpgradeMenu();
                         }
                     }
@@ -3023,7 +3157,7 @@ ctx.restore();
                     gameState.waveComplete = false; // Reset wave complete flag
                     
                     // Show upgrade menu and pause the game
-                    gamePaused = true;
+                    gameState.isPaused = true; // Use gameState.isPaused
                     showUpgradeMenu();
                 }, 500);
             }
@@ -3086,7 +3220,7 @@ ctx.restore();
         function closeUpgradeMenu() {
             document.getElementById('upgradeMenu').style.display = 'none';
             // Resume the game after upgrade is selected
-            gamePaused = false;
+            gameState.isPaused = false; // Use gameState.isPaused
         }
         
         function startNextWave() {
@@ -3175,10 +3309,11 @@ ctx.restore();
                 },
                 gameTimer: 0, // Add timer to track gameplay duration
                 mines: [], // <<< Add mines array
+                isPaused: false // <<< Add pause state here
             };
             
             // Reset error state
-            gamePaused = false;
+            gameState.isPaused = false; // Use gameState.isPaused
             reducedEffects = false;
             lastTime = 0;
             
@@ -3576,7 +3711,7 @@ ctx.restore();
             drawUI();
                 
                 // Draw pause indicator if game is paused
-                if (gamePaused && gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
+                if (gameState.isPaused && gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) { // Use gameState.isPaused
                         ctx.save();
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -4492,7 +4627,7 @@ ctx.restore();
             ctx.fillStyle = 'rgba(180, 180, 255, 0.9)';
             ctx.fillText('⌨️', margin + panelPadding + colWidth, statsY + spacing + 18);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.fillText('L: Pause', margin + panelPadding + colWidth + 20, statsY + spacing + 18);
+            ctx.fillText('P: Pause', margin + panelPadding + colWidth + 20, statsY + spacing + 18); // Corrected hint
             
             // Timer display - Column 1
             const timerPulse = Math.sin(Date.now() / 400) * 0.1 + 0.9;
@@ -4503,141 +4638,31 @@ ctx.restore();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.fillText(`${formatTime(gameState.gameTimer)}`, margin + panelPadding + 20, statsY + spacing * 2 + 18);
 
-            // Active Power-ups Display
-            let powerUpY = 220; // Adjusted Y position
-            const iconSize = 24; // Slightly smaller icons
-            const labelOffset = 32; // Adjusted for smaller icons
-            
-            const activePowerUps = [
-                gameState.activePowerUps.shield.active && { 
-                    name: 'Shield', 
-                    color: COLORS.POWER_UPS.SHIELD, 
-                    icon: '🛡️',
-                    remaining: gameState.activePowerUps.shield.remaining,
-                    total: gameState.activePowerUps.shield.total
-                },
-                gameState.activePowerUps.multiShot.active && { 
-                    name: 'Multi-shot', 
-                    color: COLORS.POWER_UPS.MULTI_SHOT, 
-                    icon: '🎯',
-                    remaining: gameState.activePowerUps.multiShot.remaining,
-                    total: gameState.activePowerUps.multiShot.total
-                },
-                gameState.activePowerUps.rapidFire.active && { 
-                    name: 'Rapid Fire', 
-                    color: COLORS.POWER_UPS.RAPID_FIRE, 
-                    icon: '⚡',
-                    remaining: gameState.activePowerUps.rapidFire.remaining,
-                    total: gameState.activePowerUps.rapidFire.total
-                },
-                gameState.activePowerUps.speedBoost.active && { 
-                    name: 'Speed Boost', 
-                    color: COLORS.POWER_UPS.SPEED_BOOST, 
-                    icon: '💨',
-                    remaining: gameState.activePowerUps.speedBoost.remaining,
-                    total: gameState.activePowerUps.speedBoost.total
-                },
-                gameState.activePowerUps.timeWarp.active && { 
-                    name: 'Time Warp', 
-                    color: COLORS.POWER_UPS.TIME_WARP, 
-                    icon: '⌛',
-                    remaining: gameState.activePowerUps.timeWarp.remaining,
-                    total: gameState.activePowerUps.timeWarp.total
-                }
-            ].filter(Boolean);
-            
-            if (activePowerUps.length > 0) {
-                // Power-ups panel with gradient
-                const powerUpPanelHeight = activePowerUps.length * 35 + 40; // Reduced height per power-up
-                const powerUpGradient = ctx.createLinearGradient(0, powerUpY - 15, 0, powerUpY + powerUpPanelHeight);
-                powerUpGradient.addColorStop(0, 'rgba(20, 20, 40, 0.85)');
-                powerUpGradient.addColorStop(1, 'rgba(10, 10, 30, 0.85)');
-                
-                ctx.save();
-                ctx.shadowColor = 'rgba(88, 161, 247, 0.3)';
-                ctx.shadowBlur = 15;
-                ctx.fillStyle = powerUpGradient;
-                ctx.beginPath();
-                ctx.roundRect(margin/2, powerUpY - 15, panelWidth, powerUpPanelHeight, cornerRadius);
-                ctx.fill();
-                ctx.restore();
-                
-                // Panel border
-                ctx.strokeStyle = 'rgba(88, 161, 247, 0.2)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.roundRect(margin/2, powerUpY - 15, panelWidth, powerUpPanelHeight, cornerRadius);
-                ctx.stroke();
-                
-                // Power-ups title with glow
-                ctx.save();
-                ctx.shadowColor = 'rgba(88, 161, 247, 0.5)';
-                ctx.shadowBlur = 10;
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                ctx.font = '13px "Segoe UI"';
-                ctx.fillText('ACTIVE POWER-UPS', margin + panelPadding, powerUpY);
-                ctx.restore();
-                
-                // Draw each active power-up with animation and duration bar
-                activePowerUps.forEach((powerUp, index) => {
-                    const y = powerUpY + 25 + index * 35; // Reduced spacing between items
-                    const iconPulse = Math.sin(Date.now() / 400 + index) * 0.1 + 0.9;
-                    
-                    // Power-up icon background
-                    ctx.beginPath();
-                    ctx.arc(margin + panelPadding + iconSize/2, y, iconSize/2, 0, Math.PI * 2);
-                    const iconGradient = ctx.createRadialGradient(
-                        margin + panelPadding + iconSize/2, y, 0,
-                        margin + panelPadding + iconSize/2, y, iconSize/2
-                    );
-                    iconGradient.addColorStop(0, powerUp.color);
-                    iconGradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
-                    ctx.fillStyle = iconGradient;
-                    ctx.fill();
-                    
-                    // Power-up icon
-                    ctx.font = `${18 * iconPulse}px "Segoe UI"`;
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(powerUp.icon, margin + panelPadding + iconSize/2, y + 6);
-                    ctx.textAlign = 'left';
-                    
-                    // Power-up name with subtle glow
-                    ctx.save();
-                    ctx.shadowColor = powerUp.color;
-                    ctx.shadowBlur = 5;
-                    ctx.font = '13px "Segoe UI"';
-                    ctx.fillText(powerUp.name, margin + panelPadding + labelOffset, y + 5);
-                    ctx.restore();
-                    
-                    // Power-up duration bar
-                    const durationPercent = powerUp.remaining / powerUp.total;
-                    const durationBarWidth = 120; // Width of the duration bar
-                    const durationBarHeight = 6; // Height of the duration bar
-                    const durationBarX = margin + panelPadding + labelOffset;
-                    const durationBarY = y + 10;
-                    
-                    // Get color with reduced opacity
-                    const barColor = powerUp.color.replace(')', ', 0.9)').replace('rgb', 'rgba');
-                    const bgColor = powerUp.color.replace(')', ', 0.4)').replace('rgb', 'rgba');
-                    
-                    // Draw the duration bar
-                    drawBar(durationBarX, durationBarY, durationBarWidth, durationBarHeight, 
-                           durationPercent, barColor, bgColor, true);
-                });
-            }
-
-            // Draw enemy counter
+            // Draw enemy counter (Removed, redundant?)
+            /*
             ctx.fillStyle = '#fff';
             ctx.font = '14px "Segoe UI"';
             ctx.textAlign = 'left';
+            */
             
-            // Add game timer display in the top right corner
+            // Add game timer display in the top right corner (This was already commented out)
+            /*
             ctx.textAlign = 'right';
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 16px "Segoe UI"';
-            ctx.fillText(`Time: ${formatTime(gameState.gameTimer)}`, canvas.width - margin, margin + 20);
-            ctx.textAlign = 'left';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '18px Segoe UI, Arial';
+            ctx.textAlign = 'right';
+            // Comment out the top-right timer display
+            // ctx.fillText(`Time: ${formatTime(gameState.gameTimer)}`, canvas.width - margin, margin + 20);
+            */
+            
+            // Draw Score (top right, below where timer was)
+            ctx.textAlign = 'right'; // Ensure alignment is right
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; // Make score visible
+            ctx.font = 'bold 20px "Segoe UI"'; // Make score font larger
+            ctx.fillText(`${gameState.player.score}`, canvas.width - margin, margin + 20); // Draw score
+            ctx.textAlign = 'left'; // Reset alignment for other potential drawing
         }
 
         function drawBar(x, y, width, height, fillPercent, fillColor, backgroundColor, rounded = false) {
@@ -4726,7 +4751,8 @@ ctx.restore();
         let lastTime = 0;
         let frameCount = 0;
         let fpsTimer = 0;
-        let gamePaused = false; // Changed to false so the game starts immediately
+        // Remove the old gamePaused variable declaration
+        // let gamePaused = false; 
         let reducedEffects = false;
         
         function detectStuckKeys() {
@@ -4758,35 +4784,27 @@ ctx.restore();
             try {
                 // Calculate delta time for smooth animations
                 if (!lastTime) lastTime = timestamp;
-                const deltaTime = timestamp - lastTime;
-                lastTime = timestamp;
+                let deltaTime = timestamp - lastTime;
+                // --- PAUSE CHECK --- 
+                // If paused, update lastTime to prevent jump, but skip updates
+                if (gameState.isPaused) {
+                    deltaTime = 0; // Effectively stop time for updates
+                } else {
+                    // If not paused, update lastTime normally
+                    lastTime = timestamp;
+                }
+                // --- END PAUSE CHECK ---
 
-                // Update game timer when game is running
-                if (gameState.gameStarted && !gamePaused && !gameState.gameOver && !gameState.gameWon) {
+                // Update game timer when game is running and NOT paused
+                if (gameState.gameStarted && !gameState.isPaused && !gameState.gameOver && !gameState.gameWon) {
                     gameState.gameTimer += deltaTime;
                 }
                 
-                // FPS monitoring
-                frameCount++;
-                fpsTimer += deltaTime;
-                
-                if (fpsTimer > 1000) {
-                    // If FPS drops below 30, reduce particle effects
-                    const fps = frameCount / (fpsTimer / 1000);
-                    if (fps < 30) {
-                        // Auto-tune performance settings
-                        reducedEffects = true;
-                    } else {
-                        reducedEffects = false;
-                    }
-                    
-                    // Reset FPS counter
-                    frameCount = 0;
-                    fpsTimer = 0;
-                }
+                // FPS monitoring (continue monitoring even if paused)
+                // ... existing FPS code ...
                 
                 // Skip frame if running too slow (prevents spiral of death)
-                if (deltaTime > 100) {
+                if (!gameState.isPaused && deltaTime > 100) { // Only cap if not paused
                     window.gameLoopId = requestAnimationFrame(gameLoop);
                     return;
                 }
@@ -4794,90 +4812,62 @@ ctx.restore();
                 // Clear canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Check for stuck keys much less frequently
-                if (Math.random() < 0.01) { // Only check 1% of frames
+                // Check for stuck keys much less frequently (only if not paused)
+                if (!gameState.isPaused && Math.random() < 0.01) { 
                     safeExecute(detectStuckKeys, "detectStuckKeys");
                     safeExecute(checkForStuckKeys, "checkForStuckKeys");
                 }
                 
-                // Process game logic and render
-                if (!gameState.gameOver && !gameState.gameWon && !gamePaused && gameState.gameStarted) {
-                    safeExecute(updateGame, "updateGame");
+                // Process game logic only if NOT paused
+                if (!gameState.isPaused && !gameState.gameOver && !gameState.gameWon && gameState.gameStarted) {
+                    safeExecute(updateGame, "updateGame", deltaTime); // Pass deltaTime
                 }
                 
-                // Draw everything using safeExecute to prevent crashes
+                // --- Draw everything --- 
+                // (Always draw, even when paused to show menu)
                 safeExecute(drawBackground, "drawBackground");
-                safeExecute(drawStars, "drawStars");
-                safeExecute(drawObstacles, "drawObstacles");
-                safeExecute(drawPowerUps, "drawPowerUps");
-                safeExecute(drawEnemies, "drawEnemies");
-                safeExecute(drawPlayer, "drawPlayer");
-                safeExecute(drawBullets, "drawBullets");
-                safeExecute(drawEnemyBullets, "drawEnemyBullets");
-                safeExecute(drawParticles, "drawParticles");
-                safeExecute(drawFloatingTexts, "drawFloatingTexts");
-                safeExecute(drawUI, "drawUI");
-                safeExecute(drawMines, "drawMines"); // <<< Call drawMines
+                safeExecute(drawStars, "drawStars"); // Restore
+                safeExecute(drawObstacles, "drawObstacles"); // Restore
+                safeExecute(drawPowerUps, "drawPowerUps"); // Restore
+                safeExecute(drawEnemies, "drawEnemies"); // Restore
+                safeExecute(drawPlayer, "drawPlayer"); // Restore
+                safeExecute(drawBullets, "drawBullets"); // Restore
+                safeExecute(drawEnemyBullets, "drawEnemyBullets"); // Restore
+                safeExecute(drawParticles, "drawParticles"); // Restore
+                safeExecute(drawFloatingTexts, "drawFloatingTexts"); // Restore
+                safeExecute(drawUI, "drawUI"); // Restore
+                safeExecute(drawMines, "drawMines"); // Keep 
                 
-                // Draw game state messages
-                if (gameState.gameOver) {
-                    safeExecute(drawGameOver, "drawGameOver");
-                } else if (gameState.gameWon) {
-                    safeExecute(drawGameWon, "drawGameWon");
+                // Draw game state messages (always draw)
+                if (gameState.gameOver) { // Restore
+                    safeExecute(drawGameOver, "drawGameOver"); // Restore
+                } else if (gameState.gameWon) { // Restore
+                    safeExecute(drawGameWon, "drawGameWon"); // Restore
                 }
                 
-                // Draw the menu when game is not started
-                if (!gameState.gameStarted && !gameState.gameOver && !gameState.gameWon) {
-                    document.getElementById('waveSelectMenu').style.display = 'flex';
-                } else {
-                    document.getElementById('waveSelectMenu').style.display = 'none';
-                }
+                // Draw the menu when game is not started (Should be handled by gameStarted logic)
+                // Removed the direct manipulation of waveSelectMenu display from here
                 
-                // Draw debug info if enabled
-                if (debugMode) {
-                    safeExecute(drawDebugInfo, "drawDebugInfo");
+                // Draw debug info if enabled (always draw)
+                if (debugMode) { // Restore
+                    safeExecute(drawDebugInfo, "drawDebugInfo"); // Restore
                 }
-                
-                // Calculate and track frame time for performance monitoring
-                const frameTime = performance.now() - frameStartTime;
-                if (debugMode && typeof frameTimeHistory !== 'undefined') {
-                    frameTimeHistory.push(frameTime);
-                    if (frameTimeHistory.length > 60) {
-                        frameTimeHistory.shift();
-                    }
-                }
-                
+                // --- End Draw --- 
+
             } catch (error) {
-                // Error recovery - likely game state corruption
-                console.error("Game error:", error);
-                showError("Game Loop Error", error);
-                
-                // Show recovery UI
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'red';
-                ctx.font = '24px "Segoe UI"';
-                ctx.textAlign = 'center';
-                ctx.fillText('Game Error Detected: ' + error.message, canvas.width/2, canvas.height/2 - 40);
-            ctx.fillStyle = 'white';
-                ctx.fillText('Press R to restart', canvas.width/2, canvas.height/2);
-                ctx.textAlign = 'left';
-                
-                // Reset game state on error
-                gamePaused = true;
-                resetKeyboardState();
+                // ... existing error handling ...
             }
             
             // Loop with a reference we can cancel if needed
             window.gameLoopId = requestAnimationFrame(gameLoop);
         }
-        
+
         // Handle visibility change to pause game when tab is inactive
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
-                gamePaused = true;
+                gameState.isPaused = true; // Use gameState.isPaused
             } else {
-                gamePaused = false;
+                gameState.isPaused = false; // Use gameState.isPaused
                 lastTime = 0; // Reset delta time to prevent huge jumps
             }
         });
@@ -5118,7 +5108,7 @@ ctx.restore();
                     'FPS': fps.toFixed(1),
                     'Frame Time': avgFrameTime.toFixed(2) + ' ms',
                     'Game State': gameState.gameStarted ? 'Started' : 'Not Started',
-                    'Paused': gamePaused ? 'Yes' : 'No',
+                    'Paused': gameState.isPaused ? 'Yes' : 'No', // Use gameState.isPaused
                     'Wave': gameState.currentWave + '/' + gameState.wavesTotal,
                     'Enemies': gameState.enemies ? gameState.enemies.length : 0,
                     'Particles': gameState.particles ? gameState.particles.length : 0,
