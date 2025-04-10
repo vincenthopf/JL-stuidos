@@ -1208,10 +1208,59 @@
             player.velocity.y = player.velocity.y * (1 - velocityLerp) + targetVelocityY * velocityLerp;
             
             // Apply movement
-            player.x += moveX * player.speed;
-            player.y += moveY * player.speed;
+            let newX = player.x + moveX * player.speed;
+            let newY = player.y + moveY * player.speed;
 
-            // Keep in bounds
+            // --- BEGIN OBSTACLE COLLISION CHECK ---
+            let collidedX = false;
+            let collidedY = false;
+            const playerSize = CONSTANTS.PLAYER.BASE_SIZE; // Use player base size for collision
+
+            gameState.obstacles.forEach(obstacle => {
+                if (!obstacle || !obstacle.type) return;
+                
+                // Simple AABB collision for now (assuming obstacles are rectangles)
+                // More complex shapes/rotations would need SAT
+                const obsWidth = obstacle.width || CONSTANTS.OBSTACLES.SIZE;
+                const obsHeight = obstacle.height || CONSTANTS.OBSTACLES.THICKNESS;
+                const obsX = obstacle.x;
+                const obsY = obstacle.y;
+
+                // Check collision with the *potential* new X position
+                if (newX + playerSize/2 > obsX - obsWidth/2 && 
+                    newX - playerSize/2 < obsX + obsWidth/2 && 
+                    player.y + playerSize/2 > obsY - obsHeight/2 && 
+                    player.y - playerSize/2 < obsY + obsHeight/2) {
+                    collidedX = true;
+                    // Push player back horizontally
+                    if (moveX > 0) { // Moving right
+                        newX = obsX - obsWidth/2 - playerSize/2 - 0.1; // Place just left of obstacle
+                    } else if (moveX < 0) { // Moving left
+                        newX = obsX + obsWidth/2 + playerSize/2 + 0.1; // Place just right of obstacle
+                    }
+                }
+
+                // Check collision with the *potential* new Y position
+                if (player.x + playerSize/2 > obsX - obsWidth/2 && 
+                    player.x - playerSize/2 < obsX + obsWidth/2 && 
+                    newY + playerSize/2 > obsY - obsHeight/2 && 
+                    newY - playerSize/2 < obsY + obsHeight/2) {
+                    collidedY = true;
+                     // Push player back vertically
+                    if (moveY > 0) { // Moving down
+                        newY = obsY - obsHeight/2 - playerSize/2 - 0.1; // Place just above obstacle
+                    } else if (moveY < 0) { // Moving up
+                        newY = obsY + obsHeight/2 + playerSize/2 + 0.1; // Place just below obstacle
+                    }
+                }
+            });
+            // --- END OBSTACLE COLLISION CHECK ---
+
+            // Update player position with collision checks applied
+            player.x = newX;
+            player.y = newY;
+
+            // Keep in bounds (after collision check)
             player.x = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.width - CONSTANTS.PLAYER.BASE_SIZE, player.x));
             player.y = Math.max(CONSTANTS.PLAYER.BASE_SIZE, Math.min(canvas.height - CONSTANTS.PLAYER.BASE_SIZE, player.y));
 
