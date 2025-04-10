@@ -724,9 +724,10 @@
                 TIME_WARP: '#9932CC' // DarkOrchid
             },
             OBSTACLES: {
-                WALL: { CORE: '#4A4A4A', GLOW: '#2D2D2D' },
-                CRYSTAL_WALL: { CORE: '#616161', GLOW: '#3D3D3D' },
-                BARRIER_WALL: { CORE: '#7D7D7D', GLOW: '#4D4D4D' }
+                // New vibrant colors
+                WALL: { CORE: '#3a0ca3', GLOW: '#7b2cbf' },     // Deep Purple core, lighter Purple glow
+                CRYSTAL_WALL: { CORE: '#0077b6', GLOW: '#48cae4' }, // Ocean Blue core, Cyan glow
+                BARRIER_WALL: { CORE: '#1b4332', GLOW: '#52b788' }  // Forest Green core, Mint glow
             },
             ENEMY: {
                  // Reverting original enemies to previous colors
@@ -3578,115 +3579,67 @@ ctx.restore();
 
         function drawObstacles() {
             gameState.obstacles.forEach(obstacle => {
-                // Calculate fade out effect
-                const fadeOut = obstacle.lifetime / CONSTANTS.OBSTACLES.LIFETIME;
+                if (!obstacle || !obstacle.type) return; // Skip invalid obstacles
                 
-                // Draw glow effect with fade
-                drawGlow(obstacle.x, obstacle.y, 
-                        obstacle.isHorizontal ? CONSTANTS.OBSTACLES.SIZE/2 : CONSTANTS.OBSTACLES.THICKNESS/2,
-                        COLORS.OBSTACLES[obstacle.type].GLOW.replace(')', `, ${0.3 * fadeOut})`));
+                const now = Date.now();
+                const age = now - obstacle.spawnTime;
+                const maxLifetime = CONSTANTS.OBSTACLES.LIFETIME * 1000; // Convert to ms
+                const remainingLifetime = Math.max(0, maxLifetime - age);
+                const fadeOutDuration = 500; // 0.5 second fade out
 
-                // Draw obstacle
+                let fadeOut = 1;
+                if (remainingLifetime < fadeOutDuration) {
+                    fadeOut = remainingLifetime / fadeOutDuration;
+                }
+
+                const glowColor = COLORS.OBSTACLES[obstacle.type]?.GLOW || '#FFFFFF'; // Default white glow
+                const coreColor = COLORS.OBSTACLES[obstacle.type]?.CORE || '#888888'; // Default grey core
+
+                // Pulsing glow effect
+                const pulse = Math.sin(now / 300 + obstacle.x * 0.1) * 0.2 + 0.8; // Sine wave pulse
+                const glowOpacity = 0.4 * pulse * fadeOut; // Base glow opacity with pulse and fade
+
                 ctx.save();
                 ctx.translate(obstacle.x, obstacle.y);
-                ctx.rotate(obstacle.rotation);
-                ctx.globalAlpha = fadeOut;
+                ctx.rotate(obstacle.angle);
 
-                switch(obstacle.type) {
-                    case 'WALL':
-                        // Draw solid wall with space theme
-                        ctx.beginPath();
-                        ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
-                                CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
-                        ctx.fillStyle = COLORS.OBSTACLES.WALL.CORE;
-                        ctx.fill();
-                        
-                        // Add cosmic dust pattern
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-                        for (let i = 0; i < 15; i++) {
-                            const starX = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.SIZE;
-                            const starY = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.THICKNESS;
-                            const starSize = Math.random() * 1.5 + 0.5;
-                            ctx.beginPath();
-                            ctx.arc(starX, starY, starSize, 0, Math.PI * 2);
-                            ctx.fill();
-                        }
-                        
-                        // Add subtle meteor lines
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                        ctx.lineWidth = 1;
-                        for (let i = 0; i < 3; i++) {
-                            const lineX = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.SIZE;
-                            const lineLength = Math.random() * 30 + 10;
-                            ctx.beginPath();
-                            ctx.moveTo(lineX, -CONSTANTS.OBSTACLES.THICKNESS/2);
-                            ctx.lineTo(lineX, CONSTANTS.OBSTACLES.THICKNESS/2);
-                            ctx.stroke();
-                        }
-                        break;
+                // Draw Glow
+                ctx.shadowColor = glowColor.replace(')', `, ${glowOpacity})`);
+                ctx.shadowBlur = 15 * pulse * fadeOut;
 
-                    case 'CRYSTAL_WALL':
-                        // Draw crystal wall with space theme
-                        ctx.beginPath();
-                        ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
-                                CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
-                        ctx.fillStyle = COLORS.OBSTACLES.CRYSTAL_WALL.CORE;
-                        ctx.fill();
-                        
-                        // Add nebula-like pattern
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                        ctx.lineWidth = 1;
-                        for (let i = 0; i < 5; i++) {
-                            const angle = (i / 5) * Math.PI;
-                            ctx.beginPath();
-                            ctx.ellipse(0, 0, 
-                                Math.random() * CONSTANTS.OBSTACLES.SIZE/4 + CONSTANTS.OBSTACLES.SIZE/4, 
-                                Math.random() * CONSTANTS.OBSTACLES.THICKNESS/2 + CONSTANTS.OBSTACLES.THICKNESS/4, 
-                                angle, 0, Math.PI * 2);
-                            ctx.stroke();
-                        }
-                        
-                        // Add stars
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                        for (let i = 0; i < 10; i++) {
-                            const starX = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.SIZE;
-                            const starY = (Math.random() - 0.5) * CONSTANTS.OBSTACLES.THICKNESS;
-                            const starSize = Math.random() * 2 + 1;
-                            ctx.beginPath();
-                            ctx.arc(starX, starY, starSize, 0, Math.PI * 2);
-                            ctx.fill();
-                        }
-                        break;
+                // Core obstacle shape with rounded corners and slight transparency
+                const coreOpacity = 0.8 * fadeOut; // Base core opacity with fade
+                const coreFill = coreColor.replace(')', `, ${coreOpacity})`); 
+                ctx.fillStyle = coreFill;
 
-                    case 'BARRIER_WALL':
-                        // Draw barrier wall with space debris theme
+                const width = obstacle.width || CONSTANTS.OBSTACLES.SIZE;
+                const height = obstacle.height || CONSTANTS.OBSTACLES.THICKNESS;
+                const cornerRadius = 8; // Add rounded corners
+
+                ctx.beginPath();
+                ctx.roundRect(-width / 2, -height / 2, width, height, cornerRadius); 
+                ctx.fill();
+                
+                // Add subtle inner texture/pattern based on type (optional)
+                ctx.strokeStyle = glowColor.replace(')', `, ${0.1 * fadeOut})`); // Faint lines
+                ctx.lineWidth = 1;
+                if (obstacle.type === 'CRYSTAL_WALL') {
+                     // Diagonal crystal-like lines
+                    for (let i = -width/2; i < width/2; i += 10) {
                         ctx.beginPath();
-                        ctx.rect(-CONSTANTS.OBSTACLES.SIZE/2, -CONSTANTS.OBSTACLES.THICKNESS/2, 
-                                CONSTANTS.OBSTACLES.SIZE, CONSTANTS.OBSTACLES.THICKNESS);
-                        ctx.fillStyle = COLORS.OBSTACLES.BARRIER_WALL.CORE;
-                        ctx.fill();
-                        
-                        // Add asteroid belt pattern
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                        for (let i = -CONSTANTS.OBSTACLES.SIZE/2 + 10; i <= CONSTANTS.OBSTACLES.SIZE/2 - 10; i += 25) {
-                            const asteroidY = (Math.random() - 0.5) * (CONSTANTS.OBSTACLES.THICKNESS - 4);
-                            const asteroidSize = Math.random() * 5 + 3;
-                            ctx.beginPath();
-                            ctx.arc(i, asteroidY, asteroidSize, 0, Math.PI * 2);
-                            ctx.fill();
-                            
-                            // Add smaller debris around each asteroid
-                            for (let j = 0; j < 3; j++) {
-                                const debrisX = i + (Math.random() - 0.5) * 15;
-                                const debrisY = asteroidY + (Math.random() - 0.5) * 10;
-                                const debrisSize = Math.random() * 1.5 + 0.5;
-                                ctx.beginPath();
-                                ctx.arc(debrisX, debrisY, debrisSize, 0, Math.PI * 2);
-                                ctx.fill();
-                            }
-                        }
-                        break;
-                }
+                        ctx.moveTo(i, -height/2);
+                        ctx.lineTo(i + 10, height/2);
+                        ctx.stroke();
+                    }
+                } else if (obstacle.type === 'BARRIER_WALL') {
+                    // Horizontal energy lines
+                    for (let i = -height/2 + 3; i < height/2; i += 6) {
+                        ctx.beginPath();
+                        ctx.moveTo(-width/2, i);
+                        ctx.lineTo(width/2, i);
+                        ctx.stroke();
+                    }
+                } // Basic WALL has no extra pattern
 
                 ctx.restore();
             });
