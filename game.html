@@ -837,8 +837,8 @@
             _keys: {},
             _timestamps: {},
             _movementKeys: ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'],
-            _secretCodeBuffer: [],
-            _secretCodeTimeout: null,
+            _waveSelectBuffer: [], // Stores { key: string, time: number } for K or L
+            _waveSelectTimeout: null, // Timeout for the K+L sequence
             
             // Initialize controller
             init() {
@@ -894,18 +894,71 @@
                     return; // Stop further processing for 'p'
                 }
                 
+                // --- START K+L Wave Select Logic ---
+                const waveSelectKeyTimeoutDuration = 1000; // ms to press the sequence
+                const now = Date.now();
+                let waveSelectTriggered = false;
+                
+                // Add key to sequence buffer if it's K or L
+                if (key === 'k' || key === 'l') {
+                    // Clear previous timeout if a new relevant key is pressed
+                    if (this._waveSelectTimeout) {
+                        clearTimeout(this._waveSelectTimeout);
+                        this._waveSelectTimeout = null;
+                    }
+                    
+                    // Add the keypress with timestamp
+                    this._waveSelectBuffer.push({ key: key, time: now });
+                    
+                    // Prune buffer: remove keys older than the timeout duration
+                    this._waveSelectBuffer = this._waveSelectBuffer.filter(entry => now - entry.time < waveSelectKeyTimeoutDuration);
+
+                    // Check if both K and L are present in the recent buffer
+                    const hasK = this._waveSelectBuffer.some(entry => entry.key === 'k');
+                    const hasL = this._waveSelectBuffer.some(entry => entry.key === 'l');
+                    
+                    if (hasK && hasL) {
+                        console.log("K+L sequence detected!"); // DEBUG
+                        waveSelectTriggered = true;
+                        // Show wave selection menu and pause game
+                        gameState.gameStarted = false;
+                        gameState.isPaused = true; // Ensure game is paused when menu shows
+                        const waveMenu = document.getElementById('waveSelectMenu');
+                        if (waveMenu) {
+                            waveMenu.style.display = 'flex';
+                            initWaveSelectionMenu(); // Re-initialize menu content
+                        } else {
+                            console.error("Could not find waveSelectMenu element!");
+                        }
+                        this._waveSelectBuffer = []; // Clear buffer after activation
+                    } else if (this._waveSelectBuffer.length > 0) {
+                        // If only one key is pressed, set a timeout to clear the buffer
+                         this._waveSelectTimeout = setTimeout(() => {
+                            // console.log("Clearing wave select buffer due to timeout"); // DEBUG
+                            this._waveSelectBuffer = [];
+                            this._waveSelectTimeout = null;
+                        }, waveSelectKeyTimeoutDuration);
+                    }
+                }
+                // --- END K+L Wave Select Logic ---
+                
+                // If wave select was triggered, stop processing other keys for this event
+                if (waveSelectTriggered) {
+                    return;
+                }
+
+                /* --- REMOVE OLD Shift+P+/ Logic --- */
+                /*
                 // Secret code sequence tracking (Shift+P+/)
                 if (this._secretCodeTimeout) {
                     clearTimeout(this._secretCodeTimeout);
                 }
-                
                 // Add key to sequence buffer
                 if (e.shiftKey && key === 'p') {
                     this._secretCodeBuffer.push('shift+p');
                 } else if (key === '/') {
                     this._secretCodeBuffer.push('/');
                 }
-                
                 // Check for the full sequence
                 if (this._secretCodeBuffer.length >= 2 && 
                     this._secretCodeBuffer.includes('shift+p') && 
@@ -918,11 +971,12 @@
                     this._secretCodeBuffer = []; // Clear buffer after activation
                     return;
                 }
-                
                 // Set timeout to clear buffer after 1 second
                 this._secretCodeTimeout = setTimeout(() => {
                     this._secretCodeBuffer = [];
                 }, 1000);
+                */
+                 /* --- END REMOVED OLD LOGIC --- */
                 
                 // Restart game on 'r' key when game is over
                 if (key === 'r' && (gameState.gameOver || gameState.gameWon)) {
