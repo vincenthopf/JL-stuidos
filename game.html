@@ -31,8 +31,9 @@
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            /* Remove fixed width/height to prevent stretching */
+            /* width: 100%; */
+            /* height: 100%; */
         }
         #upgradeMenu {
             position: absolute;
@@ -2554,16 +2555,35 @@
                         
                         // Move in smaller steps, checking for collisions at each step
                         for (let i = 1; i <= steps; i++) {
-                            const stepX = enemy.x + (totalDx / steps);
-                            const stepY = enemy.y + (totalDy / steps);
+                            const nextX = enemy.x + (totalDx / steps);
+                            const nextY = enemy.y + (totalDy / steps);
                             
-                            // Check if this smaller step would cause a collision
-                            if (!isPositionBlocked(stepX, stepY, enemy.size)) {
-                                enemy.x = stepX;
-                                enemy.y = stepY;
+                            // Check if this smaller step would cause a collision using isPositionBlocked first
+                            if (!isPositionBlocked(nextX, nextY, enemy.size / 2)) { // Use radius for check
+                                enemy.x = nextX;
+                                enemy.y = nextY;
                             } else {
-                                // Hit a wall during this step, stop moving
-                                break;
+                                // If potential collision, try a final check/push using checkWallCollision
+                                // Find the specific wall causing the block (optional, but potentially more accurate)
+                                let blockingWall = gameState.obstacles.find(wall => {
+                                    const checkDx = nextX - wall.x;
+                                    const checkDy = nextY - wall.y;
+                                    const buffer = 2; 
+                                    const wallHalfThick = CONSTANTS.OBSTACLES.THICKNESS/2;
+                                    const wallHalfSize = CONSTANTS.OBSTACLES.SIZE/2;
+                                    if (wall.isHorizontal) {
+                                        return Math.abs(checkDy) < enemy.size/2 + wallHalfThick + buffer && Math.abs(checkDx) < wallHalfSize + buffer;
+                                    } else {
+                                        return Math.abs(checkDx) < enemy.size/2 + wallHalfThick + buffer && Math.abs(checkDy) < wallHalfSize + buffer;
+                                    }
+                                });
+                                
+                                // If a specific wall is found, attempt pushback
+                                if (blockingWall) {
+                                    checkWallCollision(enemy, blockingWall, enemy.size / 2); // Use radius
+                                }
+                                // Stop further steps after collision/pushback
+                                break; 
                             }
                         }
                     } else {
@@ -5085,9 +5105,16 @@ ctx.restore();
                     safeExecute(checkForStuckKeys, "checkForStuckKeys");
                 }
                 
-                // Process game logic only if NOT paused
-                if (!gameState.isPaused && !gameState.gameOver && !gameState.gameWon && gameState.gameStarted) {
+                // Process game logic only if NOT paused AND sounds are ready
+                if (!gameState.isPaused && !gameState.gameOver && !gameState.gameWon && gameState.gameStarted && SoundManager.soundsReady) {
                     safeExecute(updateGame, "updateGame", deltaTime); // Pass deltaTime
+                } else if (!SoundManager.soundsReady) {
+                    // Draw loading indicator if sounds aren't ready yet
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.font = '24px "Segoe UI"';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Loading Sounds...', canvas.width / 2, canvas.height / 2);
+                    ctx.textAlign = 'left'; // Reset alignment
                 }
                 
                 // --- Draw everything --- 
