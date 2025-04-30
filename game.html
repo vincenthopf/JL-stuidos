@@ -685,7 +685,7 @@
                 SPAWN_CHANCE: 0.003,
                 TYPES: ['WALL', 'CRYSTAL_WALL', 'BARRIER_WALL'],
                 DAMAGE: 0,
-                MAX_COUNT: 10,  // Maximum number of walls allowed at once
+                MAX_COUNT: 5,  // Reduced from 10 to 5 to improve performance
                 LIFETIME: 1800,  // 30 seconds at 60fps
                 RESPAWN_DELAY: 60  // 1 second delay before respawning
             },
@@ -1200,6 +1200,9 @@
             updateFloatingTexts(); // Update floating text
             updateMines(); // <<< Call updateMines
             
+            // Emergency check to prevent enemies from phasing through walls
+            preventEnemyPhasing();
+            
             // Spawn enemies if not in a boss fight
             if (!gameState.waveComplete && 
                 !gameState.isBossFight && 
@@ -1212,6 +1215,83 @@
                 
                 // Check if wave is complete
             checkWaveComplete();
+        }
+        
+        // Function to prevent enemies from phasing through walls
+        function preventEnemyPhasing() {
+            // Use a larger check distance to catch enemies BEFORE they phase through
+            const checkDistance = 250;
+            
+            gameState.enemies.forEach(enemy => {
+                // Check ALL obstacles for potential collision
+                for (let obstacle of gameState.obstacles) {
+                    // Skip check for dead enemies
+                    if (enemy.health <= 0) continue;
+                    
+                    const dx = enemy.x - obstacle.x;
+                    const dy = enemy.y - obstacle.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    // Check walls that are close to enemy with a wider radius
+                    if (dist > checkDistance) continue;
+                    
+                    // Use a much more aggressive detection radius
+                    const extraDetectionBuffer = 10; // Increased from 0
+                    
+                    // Check if enemy is inside or very close to wall
+                    let isInWall = false;
+                    
+                    if (obstacle.isHorizontal) {
+                        // For horizontal walls, dx uses SIZE (length) and dy uses THICKNESS (width)
+                        if (Math.abs(dy) < enemy.size + CONSTANTS.OBSTACLES.THICKNESS/2 + extraDetectionBuffer &&
+                            Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2 + extraDetectionBuffer) {
+                            isInWall = true;
+                        }
+                    } else {
+                        // For vertical walls, dy uses SIZE (length) and dx uses THICKNESS (width)
+                        if (Math.abs(dx) < enemy.size + CONSTANTS.OBSTACLES.THICKNESS/2 + extraDetectionBuffer &&
+                            Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2 + extraDetectionBuffer) {
+                            isInWall = true;
+                        }
+                    }
+                    
+                    if (isInWall) {
+                        // Push enemy out with much stronger force
+                        const norm = Math.max(0.1, Math.sqrt(dx*dx + dy*dy));
+                        const pushX = (dx / norm) * 30; // Doubled push force from 15 to 30
+                        const pushY = (dy / norm) * 30;
+                        
+                        // Move enemy out of wall with a significant push
+                        enemy.x = enemy.x + pushX;
+                        enemy.y = enemy.y + pushY;
+                        
+                        // Keep in bounds
+                        enemy.x = Math.max(enemy.size, Math.min(canvas.width - enemy.size, enemy.x));
+                        enemy.y = Math.max(enemy.size, Math.min(canvas.height - enemy.size, enemy.y));
+                        
+                        // Create a more noticeable "pop" effect to visualize the correction
+                        for (let i = 0; i < 5; i++) { // Increased from 3 to 5 particles
+                            gameState.particles.push(createParticle(
+                                enemy.x, enemy.y,
+                                '#FFFFFF',
+                                3, 4, 15, // Larger, longer-lasting particles
+                                true
+                            ));
+                        }
+                        
+                        // Temporarily slow down the enemy after a collision to prevent immediately trying to go through wall again
+                        enemy.tempSlowdown = 15; // Frames to apply slowdown
+                        
+                        break; // Only handle one wall collision at a time
+                    }
+                }
+                
+                // Apply temporary slowdown if active
+                if (enemy.tempSlowdown > 0) {
+                    enemy.tempSlowdown--;
+                    // We'll handle this in the enemy movement logic
+                }
+            });
         }
 
         function updatePlayer() {
@@ -1265,7 +1345,7 @@
             let newX = player.x + moveX * player.speed;
             let newY = player.y + moveY * player.speed;
 
-            // --- BEGIN OBSTACLE COLLISION CHECK ---
+            // --- BEGIN OBSTACLE COLLISION CHECK --- 
             let collidedX = false;
             let collidedY = false;
             const playerSize = CONSTANTS.PLAYER.BASE_SIZE; // Use player base size for collision
@@ -1273,10 +1353,9 @@
             gameState.obstacles.forEach(obstacle => {
                 if (!obstacle || !obstacle.type) return;
                 
-                // Simple AABB collision for now (assuming obstacles are rectangles)
-                // More complex shapes/rotations would need SAT
-                const obsWidth = obstacle.width || CONSTANTS.OBSTACLES.SIZE;
-                const obsHeight = obstacle.height || CONSTANTS.OBSTACLES.THICKNESS;
+                // Correctly determine obstacle width and height based on orientation
+                const obsWidth = obstacle.isHorizontal ? CONSTANTS.OBSTACLES.SIZE : CONSTANTS.OBSTACLES.THICKNESS;
+                const obsHeight = obstacle.isHorizontal ? CONSTANTS.OBSTACLES.THICKNESS : CONSTANTS.OBSTACLES.SIZE;
                 const obsX = obstacle.x;
                 const obsY = obstacle.y;
 
@@ -1417,36 +1496,35 @@
                     const dx = bullet.x - obstacle.x;
                     const dy = bullet.y - obstacle.y;
                     
+                    // Determine if collision occurred based on wall orientation
+                    let collision = false;
+                    
                     if (obstacle.isHorizontal) {
                         // Check horizontal wall collision with precise boundaries
                         if (Math.abs(dy) < CONSTANTS.BULLET.SIZE/2 + CONSTANTS.OBSTACLES.THICKNESS/2 &&
                             Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
-                            // Create particle effect when bullet hits wall
-                            for (let i = 0; i < 5; i++) {
-                                gameState.particles.push(createParticle(
-                                    bullet.x, bullet.y,
-                                    '#FFFFFF', // White spark
-                                    1, 2, 10,
-                                    true
-                                ));
-                            }
-                            return false; // Remove bullet
+                            collision = true;
                         }
                     } else {
                         // Check vertical wall collision with precise boundaries
                         if (Math.abs(dx) < CONSTANTS.BULLET.SIZE/2 + CONSTANTS.OBSTACLES.THICKNESS/2 &&
                             Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
-                            // Create particle effect when bullet hits wall
-                            for (let i = 0; i < 5; i++) {
-                                gameState.particles.push(createParticle(
-                                    bullet.x, bullet.y,
-                                    '#FFFFFF', // White spark
-                                    1, 2, 10,
-                                    true
-                                ));
-                            }
-                            return false; // Remove bullet
+                            collision = true;
                         }
+                    }
+                    
+                    // If collision detected, create particles and remove bullet
+                    if (collision) {
+                        // Create particle effect when bullet hits wall
+                        for (let i = 0; i < 5; i++) {
+                            gameState.particles.push(createParticle(
+                                bullet.x, bullet.y,
+                                '#FFFFFF', // White spark
+                                1, 2, 10,
+                                true
+                            ));
+                        }
+                        return false; // Remove bullet
                     }
                 }
                 
@@ -1640,6 +1718,49 @@
                     return false;
                 }
                 
+                // Check if bullet is off-screen
+                if (bullet.x < 0 || bullet.x > canvas.width || 
+                    bullet.y < 0 || bullet.y > canvas.height) {
+                    return false;
+                }
+                
+                // Check collision with walls/obstacles
+                for (let obstacle of gameState.obstacles) {
+                    const dx = bullet.x - obstacle.x;
+                    const dy = bullet.y - obstacle.y;
+                    
+                    // Determine if collision occurred based on wall orientation
+                    let collision = false;
+                    
+                    if (obstacle.isHorizontal) {
+                        // Check horizontal wall collision with precise boundaries
+                        if (Math.abs(dy) < (bullet.size || 8)/2 + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            collision = true;
+                        }
+                    } else {
+                        // Check vertical wall collision with precise boundaries
+                        if (Math.abs(dx) < (bullet.size || 8)/2 + CONSTANTS.OBSTACLES.THICKNESS/2 &&
+                            Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
+                            collision = true;
+                        }
+                    }
+                    
+                    // If collision detected, create particles and remove bullet
+                    if (collision) {
+                        // Create particle effect when bullet hits wall
+                        for (let i = 0; i < 5; i++) {
+                            gameState.particles.push(createParticle(
+                                bullet.x, bullet.y,
+                                bullet.fromBoss ? COLORS.ENEMY.BOSS.CORE : '#FF4040',
+                                1, 2, 10,
+                                true
+                            ));
+                        }
+                        return false; // Remove bullet
+                    }
+                }
+                
                 // Define bullet size based on source
                 const bulletSize = bullet.fromBoss ? (bullet.size || 12) : 8;
                 
@@ -1702,26 +1823,44 @@
             const dx = entity.x - wall.x;
             const dy = entity.y - wall.y;
             
+            const extraBuffer = 2; // Add extra buffer to collision detection to prevent phasing
+            
+            let collision = false;
+            let pushX = 0;
+            let pushY = 0;
+            
             if (wall.isHorizontal) {
+                const wallHalfLength = CONSTANTS.OBSTACLES.SIZE / 2;
+                const wallHalfThickness = CONSTANTS.OBSTACLES.THICKNESS / 2;
                 // Check horizontal wall collision with precise boundaries
-                if (Math.abs(dy) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                    Math.abs(dx) < CONSTANTS.OBSTACLES.SIZE/2) {
-                    // Push entity out of wall with precise positioning
+                if (Math.abs(dy) < entitySize + wallHalfThickness + extraBuffer &&
+                    Math.abs(dx) < wallHalfLength + extraBuffer) {
+                    collision = true;
+                    // Push vertically
                     const pushDir = dy > 0 ? 1 : -1;
-                    entity.y = wall.y + pushDir * (CONSTANTS.OBSTACLES.THICKNESS/2 + entitySize);
-                    return true;
+                    pushY = pushDir * (entitySize + wallHalfThickness + extraBuffer - Math.abs(dy) + 1); // Stronger push out
                 }
-            } else {
+            } else { // Vertical wall
+                const wallHalfLength = CONSTANTS.OBSTACLES.SIZE / 2;
+                const wallHalfThickness = CONSTANTS.OBSTACLES.THICKNESS / 2;
                 // Check vertical wall collision with precise boundaries
-                if (Math.abs(dx) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 &&
-                    Math.abs(dy) < CONSTANTS.OBSTACLES.SIZE/2) {
-                    // Push entity out of wall with precise positioning
+                if (Math.abs(dx) < entitySize + wallHalfThickness + extraBuffer &&
+                    Math.abs(dy) < wallHalfLength + extraBuffer) {
+                     collision = true;
+                    // Push horizontally
                     const pushDir = dx > 0 ? 1 : -1;
-                    entity.x = wall.x + pushDir * (CONSTANTS.OBSTACLES.THICKNESS/2 + entitySize);
-                    return true;
+                    pushX = pushDir * (entitySize + wallHalfThickness + extraBuffer - Math.abs(dx) + 1); // Stronger push out
                 }
             }
-            return false;
+            
+            if (collision) {
+                // Apply the calculated push
+                entity.x += pushX;
+                entity.y += pushY;
+                return true; // Collision occurred and push applied
+            }
+            
+            return false; // No collision
         }
 
         // Helper function to check if a position is blocked by walls
@@ -1729,7 +1868,7 @@
             return gameState.obstacles.some(wall => {
                 const dx = x - wall.x;
                 const dy = y - wall.y;
-                const buffer = 1; // Minimal buffer to allow closer proximity to walls
+                const buffer = 2; // Reduced buffer significantly from 8 to 2
                 
                 if (wall.isHorizontal) {
                     return Math.abs(dy) < entitySize + CONSTANTS.OBSTACLES.THICKNESS/2 + buffer &&
@@ -1743,7 +1882,7 @@
 
         // Helper function to check if there's a wall between two points
         function hasWallBetween(x1, y1, x2, y2, entitySize) {
-            const steps = 20; // Increased steps for more precise path checking
+            const steps = 30; // Increased steps for more precise path checking
             for (let i = 0; i <= steps; i++) {
                 const x = x1 + (x2 - x1) * (i / steps);
                 const y = y1 + (y2 - y1) * (i / steps);
@@ -1768,24 +1907,28 @@
                 { dx: -1, dy: -1 }  // diagonal left-up
             ];
 
-            // Initialize stuck detection if not present
+            // Initialize properties if not present
             enemy.lastPosition = enemy.lastPosition || { x: enemy.x, y: enemy.y };
             enemy.stuckTime = enemy.stuckTime || 0;
             enemy.lastDirection = enemy.lastDirection || null;
             enemy.wallAvoidance = enemy.wallAvoidance || { x: 0, y: 0 };
             enemy.pathHistory = enemy.pathHistory || [];
+            enemy.randomMoveTimer = enemy.randomMoveTimer || 0;
+            enemy.randomDirection = enemy.randomDirection || null;
+            
+            // Add current position to path history
             enemy.pathHistory.push({ x: enemy.x, y: enemy.y });
             if (enemy.pathHistory.length > 10) enemy.pathHistory.shift();
 
-            // Check if enemy is stuck
+            // Check if enemy is stuck (not moving much)
             const dx = enemy.x - enemy.lastPosition.x;
             const dy = enemy.y - enemy.lastPosition.y;
             const movement = Math.sqrt(dx * dx + dy * dy);
             
-            if (movement < 0.05) {
+            if (movement < 0.2) { // Increased threshold from 0.05 to 0.2
                 enemy.stuckTime++;
             } else {
-                enemy.stuckTime = 0;
+                enemy.stuckTime = Math.max(0, enemy.stuckTime - 2); // Decrease faster
             }
 
             // Calculate angle to target
@@ -1830,16 +1973,19 @@
 
             // If stuck, try to find any safe direction
             if (enemy.stuckTime > 5) {
-                for (let dir of directions) {
-                    const newX = enemy.x + dir.dx * speed;
-                    const newY = enemy.y + dir.dy * speed;
-                    
-                    if (!isPositionBlocked(newX, newY, entitySize)) {
-                        enemy.stuckTime = 0;
-                        enemy.lastDirection = dir;
-                        return dir;
-                    }
-                }
+                // Pick a completely random direction to escape
+                const randomAngle = Math.random() * Math.PI * 2;
+                const randomDir = {
+                    dx: Math.cos(randomAngle),
+                    dy: Math.sin(randomAngle)
+                };
+                
+                // Set a timer to follow this random direction for a bit
+                enemy.randomDirection = randomDir;
+                enemy.randomMoveTimer = 15;
+                enemy.stuckTime = 0;
+                
+                return randomDir;
             }
 
             // Try to move towards target while avoiding walls
@@ -2393,9 +2539,44 @@
 
                 } else {
                     // Default enemy behavior (NORMAL, FAST, TANK)
-                    // Simply move towards player
-                    enemy.x += dx / dist * enemy.speed * speedMultiplier;
-                    enemy.y += dy / dist * enemy.speed * speedMultiplier;
+                    // Apply slowdown if enemy has recently collided with a wall
+                    const slowdownFactor = enemy.tempSlowdown > 0 ? 0.3 : 1.0;
+                    
+                    // Check for walls and use pathfinding to avoid them
+                    const safeDirection = findSafeDirection(enemy, gameState.player.x, gameState.player.y, enemy.speed * speedMultiplier * slowdownFactor);
+                    
+                    if (safeDirection) {
+                        // Use smaller movement steps to prevent phasing through walls
+                        // Move in multiple smaller steps instead of one big step
+                        const totalDx = safeDirection.dx * enemy.speed * speedMultiplier * slowdownFactor;
+                        const totalDy = safeDirection.dy * enemy.speed * speedMultiplier * slowdownFactor;
+                        const steps = 5; // Increased from 3 to 5 steps for more careful movement
+                        
+                        // Move in smaller steps, checking for collisions at each step
+                        for (let i = 1; i <= steps; i++) {
+                            const stepX = enemy.x + (totalDx / steps);
+                            const stepY = enemy.y + (totalDy / steps);
+                            
+                            // Check if this smaller step would cause a collision
+                            if (!isPositionBlocked(stepX, stepY, enemy.size)) {
+                                enemy.x = stepX;
+                                enemy.y = stepY;
+                            } else {
+                                // Hit a wall during this step, stop moving
+                                break;
+                            }
+                        }
+                    } else {
+                        // Fallback if no safe direction (should rarely happen)
+                        // Use the old direct movement but with position check
+                        const newX = enemy.x + dx / dist * enemy.speed * speedMultiplier * slowdownFactor;
+                        const newY = enemy.y + dy / dist * enemy.speed * speedMultiplier * slowdownFactor;
+                        
+                        if (!isPositionBlocked(newX, newY, enemy.size)) {
+                            enemy.x = newX;
+                            enemy.y = newY;
+                        }
+                    }
                 }
                 
                 // Reduce particle generation for better performance
@@ -2543,7 +2724,10 @@ ctx.restore();
                 x,
                 y,
                 type: enemyType,
-                bulletCooldown: 0
+                bulletCooldown: 0,
+                tempSlowdown: 0, // Initialize tempSlowdown to prevent wall phasing
+                stuckTime: 0,    // Initialize stuckTime for wall avoidance
+                lastPosition: { x, y } // Track last position for stuck detection
             };
             
             // Set enemy-specific properties - weakened for early waves
@@ -3563,22 +3747,26 @@ ctx.restore();
                 return;
             }
             
-            // Existing obstacle update logic
+            // Existing obstacle update logic with performance optimization
             gameState.obstacles = gameState.obstacles.filter(obstacle => {
                 obstacle.lifetime--;
+                if (!obstacle.spawnTime) {
+                    obstacle.spawnTime = Date.now();
+                }
                 return obstacle.lifetime > 0;
             });
             
-            // Spawn new obstacles if below max count
+            // Spawn new obstacles if below max count - limit frequency
             if (gameState.obstacles.length < CONSTANTS.OBSTACLES.MAX_COUNT) {
-                if (Math.random() < CONSTANTS.OBSTACLES.SPAWN_CHANCE) {
+                // Only try to spawn walls with a lower probability to reduce lag
+                if (Math.random() < CONSTANTS.OBSTACLES.SPAWN_CHANCE * 0.8) {
                     const obstacleType = CONSTANTS.OBSTACLES.TYPES[Math.floor(Math.random() * CONSTANTS.OBSTACLES.TYPES.length)];
                     const isHorizontal = Math.random() < 0.5;
                     
                     // Improved obstacle placement to prevent overlapping
                     let x, y;
                     let attempts = 0;
-                    const maxAttempts = 10;
+                    const maxAttempts = 5; // Reduced from 10 to 5 for performance
                     let validPosition = false;
                     
                     while (!validPosition && attempts < maxAttempts) {
@@ -3593,17 +3781,25 @@ ctx.restore();
                             Math.pow(y - gameState.player.y, 2)
                         );
                         
-                        // Check distance from other obstacles
+                        // Check distance from other obstacles with optimized check
                         const minObstacleDistance = 150;
-                        const farFromObstacles = gameState.obstacles.every(obs => {
+                        let tooClose = false;
+                        
+                        // Check only up to 5 recent obstacles for performance
+                        const recentObstacles = gameState.obstacles.slice(-5);
+                        for (let i = 0; i < recentObstacles.length; i++) {
+                            const obs = recentObstacles[i];
                             const dist = Math.sqrt(
                                 Math.pow(x - obs.x, 2) + 
                                 Math.pow(y - obs.y, 2)
                             );
-                            return dist > minObstacleDistance;
-                        });
+                            if (dist <= minObstacleDistance) {
+                                tooClose = true;
+                                break;
+                            }
+                        }
                         
-                        if (playerDist > 200 && farFromObstacles) {
+                        if (playerDist > 200 && !tooClose) {
                             validPosition = true;
                         }
                         
@@ -3617,15 +3813,19 @@ ctx.restore();
                             type: obstacleType,
                             isHorizontal: isHorizontal,
                             rotation: isHorizontal ? 0 : Math.PI/2,
-                            lifetime: CONSTANTS.OBSTACLES.LIFETIME
+                            lifetime: CONSTANTS.OBSTACLES.LIFETIME,
+                            spawnTime: Date.now()
                         });
                     }
                 }
             }
 
-            // Check for collisions with player and enemies
-            gameState.obstacles.forEach(obstacle => {
-                // Check player collision with improved handling
+            // Only check most recently added obstacles for collisions
+            const activeObstacles = gameState.obstacles.slice(-10);
+            
+            // Check collisions with player
+            activeObstacles.forEach(obstacle => {
+                // Player collision
                 const playerCollision = checkWallCollision(gameState.player, obstacle, CONSTANTS.PLAYER.BASE_SIZE);
                 if (playerCollision) {
                     // Calculate push direction
@@ -3647,9 +3847,20 @@ ctx.restore();
                             gameState.player.y + pushY));
                     }
                 }
-
-                // Check enemy collisions with improved handling
-                gameState.enemies.forEach(enemy => {
+            });
+            
+            // Check collisions with enemies - only check enemies near obstacles
+            activeObstacles.forEach(obstacle => {
+                // Find nearby enemies (within 100 pixels of the obstacle)
+                const nearbyEnemies = gameState.enemies.filter(enemy => {
+                    const dx = enemy.x - obstacle.x;
+                    const dy = enemy.y - obstacle.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    return dist < 100;
+                });
+                
+                // Check collision for each nearby enemy
+                nearbyEnemies.forEach(enemy => {
                     if (checkWallCollision(enemy, obstacle, enemy.size)) {
                         // Calculate push direction
                         const dx = enemy.x - obstacle.x;
