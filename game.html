@@ -48,6 +48,14 @@
             display: none;
             backdrop-filter: blur(10px);
         }
+        /* Add styles for the upgrade options container */
+        #upgradeOptions {
+            display: flex;
+            flex-wrap: wrap; /* Allow buttons to wrap to the next line */
+            justify-content: center; /* Center buttons horizontally */
+            gap: 10px; /* Add some gap between buttons */
+            max-width: 500px; /* Optional: Prevent menu from getting too wide */
+        }
         .upgrade-button {
             background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
             border: 1px solid rgba(88, 161, 247, 0.5);
@@ -781,7 +789,8 @@
                     speed: 1,
                     health: 1,
                     energy: 1
-                }
+                },
+                powerUpDurationMultiplier: 1 // Initialize power-up duration multiplier
             },
             enemies: [],
             powerUps: [],
@@ -3214,43 +3223,55 @@ ctx.restore();
                     const dist = Math.sqrt(dx * dx + dy * dy);
 
                     if (dist < CONSTANTS.PLAYER.BASE_SIZE + 20) {
+                        // Get the current duration multiplier (default to 1 if undefined)
+                        const durationMultiplier = gameState.player.powerUpDurationMultiplier || 1;
+
                         // Handle different power-up effects
                         switch(powerUp.type) {
                             case 'shield':
                                 gameState.player.shield = 100;
                                 gameState.activePowerUps.shield.active = true;
-                                gameState.activePowerUps.shield.remaining = 10000; // Shield lasts until depleted
+                                // Shield duration isn't really timed, it depends on hits.
+                                // We'll set a large total for display consistency, but it depletes by damage.
+                                gameState.activePowerUps.shield.remaining = 10000; 
                                 gameState.activePowerUps.shield.total = 10000;
                                 break;
-                            case 'multiShot':
+                            case 'multiShot': {
+                                const baseDuration = 5000;
+                                const duration = baseDuration * durationMultiplier;
                                 gameState.player.multiShot = true;
                                 gameState.activePowerUps.multiShot.active = true;
-                                gameState.activePowerUps.multiShot.remaining = 5000;
-                                gameState.activePowerUps.multiShot.total = 5000;
-                                // Remove setTimeout to use frame-based timer consistently
+                                gameState.activePowerUps.multiShot.remaining = duration;
+                                gameState.activePowerUps.multiShot.total = duration;
                                 break;
-                            case 'speedBoost':
+                            }
+                            case 'speedBoost': {
+                                const baseDuration = 7000;
+                                const duration = baseDuration * durationMultiplier;
                                 // Reset to base speed first to prevent stacking
                                 gameState.player.speed = CONSTANTS.PLAYER.BASE_SPEED;
                                 // Apply new boost
                                 gameState.player.speed *= 1.5;
                                 gameState.player.speedBoostActive = true;
                                 gameState.activePowerUps.speedBoost.active = true;
-                                gameState.activePowerUps.speedBoost.remaining = 7000;
-                                gameState.activePowerUps.speedBoost.total = 7000;
-                                // Remove setTimeout to use frame-based timer consistently
+                                gameState.activePowerUps.speedBoost.remaining = duration;
+                                gameState.activePowerUps.speedBoost.total = duration;
                                 break;
-                            case 'rapidFire':
+                            }
+                            case 'rapidFire': {
+                                const baseDuration = 10000;
+                                const duration = baseDuration * durationMultiplier;
                                 gameState.player.rapidFire = true;
                                 gameState.activePowerUps.rapidFire.active = true;
-                                gameState.activePowerUps.rapidFire.remaining = 10000; // 10 seconds exactly
-                                gameState.activePowerUps.rapidFire.total = 10000;
+                                gameState.activePowerUps.rapidFire.remaining = duration; 
+                                gameState.activePowerUps.rapidFire.total = duration;
                                 // Add floating text to explain the new effect
                                 addFloatingText(`Unlimited Fire Rate!`, gameState.player.x, gameState.player.y - 30, COLORS.POWER_UPS.RAPID_FIRE, 40);
                                 addFloatingText(`Energy Regen +200%`, gameState.player.x, gameState.player.y - 60, COLORS.POWER_UPS.RAPID_FIRE, 40);
                                 break;
+                            }
                             case 'healthRestore':
-                                // Fix the health restore power-up by ensuring it actually adds health
+                                // Health restore is instant, no duration multiplier needed
                                 const healAmount = gameState.player.maxHealth * 0.3;
                                 gameState.player.health = Math.min(
                                     gameState.player.maxHealth,
@@ -3271,15 +3292,17 @@ ctx.restore();
                                 // Add floating text to show amount healed
                                 addFloatingText(`+${Math.round(healAmount)} HP`, gameState.player.x, gameState.player.y - 30, COLORS.POWER_UPS.HEALTH_RESTORE, 40);
                                 break;
-                            case 'timeWarp':
+                            case 'timeWarp': {
+                                const baseDuration = 5000;
+                                const duration = baseDuration * durationMultiplier;
                                 // Apply time warp effect to slow down enemies
                                 gameState.timeWarpActive = true;
                                 gameState.player.timeWarpActive = true;
                                 gameState.activePowerUps.timeWarp.active = true;
-                                gameState.activePowerUps.timeWarp.remaining = 5000;
-                                gameState.activePowerUps.timeWarp.total = 5000;
-                                // Remove setTimeout to use frame-based timer consistently
+                                gameState.activePowerUps.timeWarp.remaining = duration;
+                                gameState.activePowerUps.timeWarp.total = duration;
                                 break;
+                            }
                         }
                         
                         // Play power-up collection sound
@@ -3485,16 +3508,27 @@ ctx.restore();
             
             // Create upgrade buttons
             const upgrades = [
-                { name: 'Increase Damage', effect: () => { gameState.player.level.damage += 0.5; } },
-                { name: 'Increase Speed', effect: () => { gameState.player.speed += 1; } },
-                { name: 'Increase Health', effect: () => { 
+                { name: 'Increase Damage (+0.5)', effect: () => { gameState.player.level.damage += 0.5; } },
+                { name: 'Increase Speed (+1)', effect: () => { gameState.player.speed += 1; } },
+                { name: 'Increase Health (+25)', effect: () => { 
                     gameState.player.maxHealth += 25; 
                     gameState.player.health = gameState.player.maxHealth;
                 }},
-                { name: 'Increase Energy', effect: () => { 
+                { name: 'Increase Energy (+25)', effect: () => { 
                     gameState.player.maxEnergy += 25; 
                     gameState.player.energy = gameState.player.maxEnergy;
-                }}
+                }},
+                // Add new upgrade for power-up duration
+                { 
+                    name: 'Increase Power-up Duration (+20%)', 
+                    effect: () => { 
+                        // Initialize multiplier if it doesn't exist
+                        if (gameState.player.powerUpDurationMultiplier === undefined) {
+                            gameState.player.powerUpDurationMultiplier = 1;
+                        }
+                        gameState.player.powerUpDurationMultiplier += 0.2;
+                    }
+                }
             ];
             
             upgrades.forEach(upgrade => {
@@ -3581,7 +3615,8 @@ ctx.restore();
                         speed: 1,
                         health: 1,
                         energy: 1
-                    }
+                    },
+                    powerUpDurationMultiplier: 1 // Reset power-up duration multiplier
                 },
                 enemies: [],
                 powerUps: [],
