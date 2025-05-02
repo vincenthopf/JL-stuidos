@@ -4800,7 +4800,7 @@ ctx.restore();
             
             // Main UI Panel with gradient background
             const panelWidth = barWidth + margin * 2;
-            const panelHeight = 180; // Reduced panel height for more compact UI
+            const panelHeight = 250; // Increased panel height from 180 to 250
             const gradient = ctx.createLinearGradient(0, 0, 0, panelHeight);
             gradient.addColorStop(0, 'rgba(20, 20, 40, 0.85)');
             gradient.addColorStop(1, 'rgba(10, 10, 30, 0.85)');
@@ -4924,6 +4924,54 @@ ctx.restore();
             ctx.font = '13px "Segoe UI"';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.fillText(`${formatTime(gameState.gameTimer)}`, margin + panelPadding + 20, statsY + spacing * 2 + 18);
+
+            // --- START ADDED POWER-UP UI --- 
+            const powerUpY = statsY + spacing * 3 + 25; // Position below stats
+            let currentY = powerUpY;
+            const powerUpBarHeight = 6;
+            const powerUpIconSize = 16;
+            
+            ctx.font = '12px "Segoe UI"';
+            
+            // Power-up display mapping (Name, Icon, Color)
+            const powerUpDisplayInfo = {
+                shield: { name: 'Shield', icon: '🛡️', color: COLORS.POWER_UPS.SHIELD },
+                multiShot: { name: 'Multi-Shot', icon: '💥', color: COLORS.POWER_UPS.MULTI_SHOT },
+                speedBoost: { name: 'Speed Boost', icon: '⚡', color: COLORS.POWER_UPS.SPEED_BOOST },
+                rapidFire: { name: 'Rapid Fire', icon: '🔥', color: COLORS.POWER_UPS.RAPID_FIRE },
+                timeWarp: { name: 'Time Warp', icon: '⏳', color: COLORS.POWER_UPS.TIME_WARP }
+                // Note: Health Restore is instant, no UI needed here
+            };
+            
+            for (const type in gameState.activePowerUps) {
+                const powerUpState = gameState.activePowerUps[type];
+                const displayInfo = powerUpDisplayInfo[type];
+                
+                if (powerUpState.active && displayInfo) {
+                    const remainingPercent = powerUpState.remaining / powerUpState.total;
+                    
+                    // Draw Icon
+                    ctx.font = `${powerUpIconSize}px "Segoe UI"`;
+                    ctx.fillText(displayInfo.icon, margin + panelPadding, currentY + powerUpBarHeight);
+                    ctx.font = '12px "Segoe UI"'; // Reset font
+                    
+                    // Draw Name
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.fillText(displayInfo.name, margin + panelPadding + powerUpIconSize + 5, currentY + powerUpBarHeight);
+                    
+                    // Draw Duration Bar (offset slightly to the right)
+                    const barX = margin + panelPadding + powerUpIconSize + 5; 
+                    const barWidthAdjusted = barWidth - panelPadding * 2 - powerUpIconSize - 5;
+                    drawBar(barX, currentY + powerUpBarHeight + 5, barWidthAdjusted, powerUpBarHeight, 
+                            remainingPercent, 
+                            displayInfo.color, 
+                            displayInfo.color.replace(')', ', 0.3)') // Lighter background based on main color
+                           );
+                           
+                    currentY += powerUpBarHeight * 2 + spacing; // Move down for next power-up
+                }
+            }
+            // --- END ADDED POWER-UP UI ---
 
             // Draw enemy counter (Removed, redundant?)
             /*
