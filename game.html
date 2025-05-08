@@ -2416,16 +2416,17 @@
                     // Healer specific behavior
                     if (enemy.healCooldown > 0) {
                         enemy.healCooldown--;
-                    } else if (dist > 50) { // Healers try to stay back slightly
+                    } else {
+                        // Healer will always try to heal if cooldown is ready, regardless of player distance
                         let targetHealed = false;
                         let closestDamagedEnemy = null;
-                        let minDamagedDist = enemy.healRange; // Max range
+                        // Find closest damaged ally (not self, not other healers) - REMOVED healRange constraint
+                        let minDamagedDist = Infinity; // Start with infinity to find any damaged ally
 
-                        // Find closest damaged ally (not self, not other healers)
                         gameState.enemies.forEach(otherEnemy => {
                             if (otherEnemy !== enemy && otherEnemy.type !== 'HEALER' && otherEnemy.health < otherEnemy.maxHealth) {
                                 const d = Math.hypot(enemy.x - otherEnemy.x, enemy.y - otherEnemy.y);
-                                if (d < minDamagedDist) {
+                                if (d < minDamagedDist) { // Find the closest one to prioritize
                                     minDamagedDist = d;
                                     closestDamagedEnemy = otherEnemy;
                                 }
@@ -2452,9 +2453,13 @@
                             addFloatingText(closestDamagedEnemy.x, closestDamagedEnemy.y - closestDamagedEnemy.size, `+${enemy.healAmount}`, 'lime');
                         }
                     }
-                    // Healer movement: still moves towards player, but maybe slower or more erratic later
-                     enemy.x += dx / dist * enemy.speed * 0.8; // Slightly slower move speed
-                     enemy.y += dy / dist * enemy.speed * 0.8;
+                    // Healer movement: Move AWAY from the player
+                     enemy.x -= dx / dist * enemy.speed * 0.7; // Slower move speed, and reversed direction
+                     enemy.y -= dy / dist * enemy.speed * 0.7; // Slower move speed, and reversed direction
+
+                     // Keep healer in bounds after moving away
+                    enemy.x = Math.max(enemy.size, Math.min(canvas.width - enemy.size, enemy.x));
+                    enemy.y = Math.max(enemy.size, Math.min(canvas.height - enemy.size, enemy.y));
 
                 } else if (enemy.type === 'MINELAYER') {
                     // --- MINELAYER LOGIC --- 
