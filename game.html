@@ -39,183 +39,150 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(10, 10, 42, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            border: 2px solid rgba(88, 161, 247, 0.5);
-            box-shadow: 0 0 40px rgba(88, 161, 247, 0.3);
+            transform: translate(-50%, -50%) scale(1);
+            background: rgba(20, 30, 60, 0.96);
+            padding: 44px 36px 32px 36px;
+            border-radius: 24px;
+            border: 2.5px solid #7ecbffcc;
+            box-shadow: 0 8px 48px 0 #7ecbff33, 0 1.5px 8px 0 rgba(0,0,0,0.18);
             display: none;
-            backdrop-filter: blur(10px);
+            z-index: 100;
+            min-width: 340px;
+            max-width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: popIn 0.5s cubic-bezier(.68,-0.55,.27,1.55);
+            backdrop-filter: blur(18px) saturate(1.2);
         }
-        /* Add styles for the upgrade options container */
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
         #upgradeOptions {
             display: flex;
-            flex-wrap: wrap; /* Allow buttons to wrap to the next line */
-            justify-content: center; /* Center buttons horizontally */
-            gap: 10px; /* Add some gap between buttons */
-            max-width: 500px; /* Optional: Prevent menu from getting too wide */
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 18px;
+            max-width: 600px;
         }
         .upgrade-button {
-            background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
-            border: 1px solid rgba(88, 161, 247, 0.5);
+            background: linear-gradient(120deg, #1a1a4a 60%, #2a2a6a 100%);
+            border: 2px solid #7ecbffcc;
             color: #fff;
-            padding: 15px;
-            margin: 8px;
+            padding: 20px 0;
+            margin: 0;
             cursor: pointer;
-            border-radius: 10px;
-            width: 220px;
-            transition: all 0.3s ease;
-            font-size: 14px;
-            text-shadow: 0 0 10px rgba(88, 161, 247, 0.5);
+            border-radius: 14px;
+            width: 240px;
+            font-size: 1.15em;
+            font-weight: 600;
+            text-shadow: 0 0 10px #7ecbff55;
+            box-shadow: 0 2px 12px 0 #7ecbff22;
+            transition: all 0.18s cubic-bezier(.68,-0.55,.27,1.55);
+            outline: none;
         }
-        .upgrade-button:hover {
-            background: linear-gradient(45deg, #2a2a6a, #3a3a8a);
-            box-shadow: 0 0 20px rgba(88, 161, 247, 0.3);
-            transform: translateY(-2px);
+        .upgrade-button:focus, .upgrade-button:hover {
+            background: linear-gradient(120deg, #2a2a6a 60%, #7ecbff 100%);
+            border: 2.5px solid #7ecbff;
+            box-shadow: 0 0 24px 0 #7ecbffaa;
+            color: #fff;
+            transform: scale(1.08) translateY(-2px);
+        }
+        .upgrade-button:last-child {
+            background: linear-gradient(120deg, #4a1a1a 60%, #6a2a2a 100%);
+            border-color: #ff8888cc;
+            color: #fff;
+        }
+        .upgrade-button:last-child:hover, .upgrade-button:last-child:focus {
+            background: linear-gradient(120deg, #6a2a2a 60%, #ff8888 100%);
+            border-color: #ff8888;
+            box-shadow: 0 0 24px 0 #ff8888aa;
         }
         #waveSelectMenu {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(10, 10, 42, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            border: 2px solid rgba(88, 161, 247, 0.5);
-            box-shadow: 0 0 40px rgba(88, 161, 247, 0.3);
+            transform: translate(-50%, -50%) scale(1);
+            background: rgba(20, 30, 60, 0.92);
+            padding: 40px 36px 32px 36px;
+            border-radius: 24px;
+            border: 2.5px solid rgba(88, 161, 247, 0.7);
+            box-shadow: 0 8px 48px 0 rgba(88, 161, 247, 0.25), 0 1.5px 8px 0 rgba(0,0,0,0.18);
             display: flex;
             flex-direction: column;
             align-items: center;
-            z-index: 10;
-            backdrop-filter: blur(10px);
-            min-width: 400px;
+            z-index: 100;
+            min-width: 340px;
+            max-width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: popIn 0.5s cubic-bezier(.68,-0.55,.27,1.55);
+            backdrop-filter: blur(18px) saturate(1.2);
         }
-        .wave-button {
-            background: linear-gradient(45deg, #1a1a4a, #2a2a6a);
-            border: 1px solid rgba(88, 161, 247, 0.5);
-            color: #fff;
-            padding: 12px;
-            margin: 6px;
-            cursor: pointer;
-            border-radius: 10px;
-            width: 120px;
-            transition: all 0.3s ease;
-            font-size: 14px;
-            text-shadow: 0 0 10px rgba(88, 161, 247, 0.5);
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
-        .wave-button:hover {
-            background: linear-gradient(45deg, #2a2a6a, #3a3a8a);
-            box-shadow: 0 0 20px rgba(88, 161, 247, 0.3);
-            transform: translateY(-2px);
+        .menu-title {
+            color: #7ecbff;
+            margin-bottom: 24px;
+            text-align: center;
+            font-size: 2.1em;
+            letter-spacing: 1.5px;
+            font-weight: 700;
+            text-shadow: 0 2px 16px #1a1a4a44;
         }
         .wave-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin: 20px 0;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 16px;
+            margin: 18px 0 18px 0;
+            width: 100%;
+            justify-items: center;
         }
-        .menu-title {
-            color: #58A1F7;
-            margin-bottom: 20px;
-            text-align: center;
+        .wave-button {
+            background: linear-gradient(120deg, #1a1a4a 60%, #2a2a6a 100%);
+            border: 2px solid rgba(88, 161, 247, 0.7);
+            color: #fff;
+            padding: 18px 0;
+            cursor: pointer;
+            border-radius: 12px;
+            width: 110px;
+            font-size: 1.1em;
+            font-weight: 600;
+            text-shadow: 0 0 10px rgba(88, 161, 247, 0.3);
+            box-shadow: 0 2px 12px 0 rgba(88, 161, 247, 0.10);
+            transition: all 0.18s cubic-bezier(.68,-0.55,.27,1.55);
+            outline: none;
+        }
+        .wave-button.selected, .wave-button:focus, .wave-button:hover {
+            background: linear-gradient(120deg, #2a2a6a 60%, #58A1F7 100%);
+            border: 2.5px solid #58A1F7;
+            box-shadow: 0 0 24px 0 #58A1F7aa;
+            color: #fff;
+            transform: scale(1.08) translateY(-2px);
         }
         .start-button {
-            background: linear-gradient(45deg, #1a4a1a, #2a6a2a);
-            border: 1px solid rgba(88, 247, 88, 0.5);
+            background: linear-gradient(90deg, #1a4a1a 60%, #2a6a2a 100%);
+            border: 2px solid rgba(88, 247, 88, 0.7);
             color: #fff;
-            padding: 15px 30px;
-            margin-top: 10px;
+            padding: 16px 36px;
+            margin-top: 18px;
             cursor: pointer;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-            font-size: 16px;
-            text-shadow: 0 0 10px rgba(88, 247, 88, 0.5);
+            border-radius: 12px;
+            font-size: 1.2em;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(88, 247, 88, 0.4);
+            box-shadow: 0 2px 12px 0 rgba(88, 247, 88, 0.10);
+            transition: all 0.18s cubic-bezier(.68,-0.55,.27,1.55);
         }
-        .start-button:hover {
-            background: linear-gradient(45deg, #2a6a2a, #3a8a3a);
-            box-shadow: 0 0 20px rgba(88, 247, 88, 0.3);
-            transform: translateY(-2px);
-        }
-        
-        /* Debug Panel Styles */
-        #debugPanel {
-            font-family: monospace;
-            font-size: 12px;
+        .start-button:hover, .start-button:focus {
+            background: linear-gradient(90deg, #2a6a2a 60%, #7fff7f 100%);
+            box-shadow: 0 0 24px 0 #7fff7faa;
+            color: #fff;
+            transform: scale(1.06) translateY(-2px);
         }
         
-        #debugPanel .debug-item {
-            margin-bottom: 4px;
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        #debugPanel .debug-key {
-            color: #aaaaff;
-            margin-right: 10px;
-        }
-        
-        #debugPanel .debug-value {
-            color: #ffffff;
-        }
-        
-        #debugPanel .debug-section-header {
-            margin-top: 10px;
-            margin-bottom: 5px;
-            color: #ffaaaa;
-            font-weight: bold;
-            border-bottom: 1px solid #444;
-            padding-bottom: 3px;
-        }
-        
-        #debugPanel .error-entry {
-            margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #444;
-        }
-        
-        #debugPanel .error-message {
-            color: #ff5555;
-            font-weight: bold;
-        }
-        
-        #debugPanel .error-location {
-            color: #aaaaff;
-            font-size: 10px;
-        }
-        
-        #debugPanel .error-time, 
-        #debugPanel .timestamp {
-            color: #999;
-            font-size: 10px;
-        }
-        
-        #debugPanel .debug-controls {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-        }
-        
-        #debugPanel button {
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            padding: 3px 8px;
-            cursor: pointer;
-        }
-        
-        #debugPanel button:hover {
-            background: #444;
-        }
-        
-        #debugBtn {
-            transition: all 0.3s ease;
-        }
-        
-        #debugBtn:hover {
-            background: rgba(30, 30, 80, 0.7) !important;
-        }
-
         #pauseMenu {
             position: absolute;
             top: 50%;
@@ -240,6 +207,224 @@
         #pauseMenu p {
             font-size: 1.2em;
             color: #cccccc; /* Light gray */
+        }
+        /* Debug Panel Styles */
+        #debugPanel {
+            font-family: monospace;
+            font-size: 12px;
+        }
+        #debugPanel .debug-item {
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        #debugPanel .debug-key {
+            color: #aaaaff;
+            margin-right: 10px;
+        }
+        #debugPanel .debug-value {
+            color: #ffffff;
+        }
+        #debugPanel .debug-section-header {
+            margin-top: 10px;
+            margin-bottom: 5px;
+            color: #ffaaaa;
+            font-weight: bold;
+            border-bottom: 1px solid #444;
+            padding-bottom: 3px;
+        }
+        #debugPanel .error-entry {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #444;
+        }
+        #debugPanel .error-message {
+            color: #ff5555;
+            font-weight: bold;
+        }
+        #debugPanel .error-location {
+            color: #aaaaff;
+            font-size: 10px;
+        }
+        #debugPanel .error-time, 
+        #debugPanel .timestamp {
+            color: #999;
+            font-size: 10px;
+        }
+        #debugPanel .debug-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        #debugPanel button {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 3px 8px;
+            cursor: pointer;
+        }
+        #debugPanel button:hover {
+            background: #444;
+        }
+        #debugBtn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            padding: 6px 10px;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 1000;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            box-shadow: 0 2px 8px 0 rgba(0,0,0,0.12);
+        }
+        #debugBtn:hover {
+            background: rgba(30, 30, 80, 0.7) !important;
+        }
+        /* --- BEAUTIFUL, COMPACT GLASSY TOP-LEFT UI PANEL --- */
+        #mainUIPanel {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            min-width: 220px;
+            max-width: 320px;
+            padding: 14px 18px 10px 18px;
+            background: rgba(20, 28, 44, 0.82);
+            border-radius: 16px;
+            border: 1.5px solid #3a4a6a55;
+            box-shadow: 0 4px 24px 0 #7ecbff18, 0 1.5px 8px 0 rgba(0,0,0,0.18);
+            z-index: 10;
+            backdrop-filter: blur(12px) saturate(1.1);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            pointer-events: none;
+        }
+        @media (max-width: 600px) {
+            #mainUIPanel {
+                left: 6px;
+                top: 6px;
+                min-width: 120px;
+                max-width: 98vw;
+                padding: 7px 4px 6px 4px;
+            }
+        }
+        .main-ui-bar {
+            width: 100%;
+            height: 13px;
+            background: rgba(30, 40, 70, 0.6);
+            border-radius: 7px;
+            margin-bottom: 4px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px 0 #7ecbff18;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .main-ui-bar-fill {
+            height: 100%;
+            border-radius: 7px;
+            transition: width 0.3s cubic-bezier(.68,-0.55,.27,1.55);
+            box-shadow: 0 0 8px 0 #7ecbff33;
+            position: absolute;
+            left: 0; top: 0;
+        }
+        .main-ui-bar.health {
+            background: rgba(40, 60, 40, 0.6);
+        }
+        .main-ui-bar-fill.health {
+            background: linear-gradient(90deg, #7ecbff 0%, #58F77A 100%);
+        }
+        .main-ui-bar.energy {
+            background: rgba(30, 40, 70, 0.6);
+        }
+        .main-ui-bar-fill.energy {
+            background: linear-gradient(90deg, #58A1F7 0%, #7ecbff 100%);
+        }
+        .main-ui-bar-value {
+            position: absolute;
+            right: 10px;
+            top: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            font-size: 0.98em;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 1px 4px #0008;
+            pointer-events: none;
+        }
+        .main-ui-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 2px;
+            justify-content: space-between;
+        }
+        .main-ui-icon {
+            font-size: 1.1em;
+            margin-right: 2px;
+        }
+        .main-ui-value {
+            font-size: 1em;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 1px 4px #0008;
+        }
+        .main-ui-secondary {
+            color: #b0cfff;
+            font-size: 0.95em;
+            margin-left: 2px;
+        }
+        .main-ui-timer {
+            color: #b0cfff;
+            font-size: 0.98em;
+            text-align: right;
+            margin-bottom: 2px;
+        }
+        .main-ui-powerups {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .main-ui-powerup-pill {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(60, 80, 120, 0.7);
+            border-radius: 12px;
+            padding: 2px 10px 2px 7px;
+            font-size: 0.93em;
+            color: #ffb347;
+            font-weight: 500;
+            box-shadow: 0 1px 4px #0002;
+            border: 1px solid #ffb34733;
+            min-width: 0;
+        }
+        .main-ui-powerup-pill-bar {
+            height: 5px;
+            width: 38px;
+            background: rgba(255,255,255,0.10);
+            border-radius: 3px;
+            margin-left: 6px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .main-ui-powerup-pill-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffb347 0%, #ff6a00 100%);
+            border-radius: 3px;
+            transition: width 0.3s cubic-bezier(.68,-0.55,.27,1.55);
         }
     </style>
 </head>
@@ -273,7 +458,9 @@
         <div id="debugContent"></div>
     </div>
     
-    <div id="debugBtn" style="position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.5); color: #fff; padding: 5px 10px; font-size: 12px; cursor: pointer; z-index: 1000; border-radius: 5px;">Debug Mode (Alt+D)</div>
+    <div id="debugBtn" title="Show Debug Panel">🐞</div>
+    
+    <div id="mainUIPanel"></div>
     
     <script>
         // Add debugging and error handling functions
@@ -1079,8 +1266,7 @@
                 
                 // Highlight the currently selected wave
                 if (i === gameState.selectedWave) {
-                    button.style.border = '2px solid #58A1F7';
-                    button.style.boxShadow = '0 0 15px rgba(88, 161, 247, 0.5)';
+                    button.classList.add('selected');
                 }
                 
                 button.addEventListener('click', () => {
@@ -1089,12 +1275,10 @@
                     
                     // Update button styles
                     document.querySelectorAll('.wave-button').forEach(btn => {
-                        btn.style.border = '1px solid rgba(88, 161, 247, 0.5)';
-                        btn.style.boxShadow = 'none';
+                        btn.classList.remove('selected');
                     });
                     
-                    button.style.border = '2px solid #58A1F7';
-                    button.style.boxShadow = '0 0 15px rgba(88, 161, 247, 0.5)';
+                    button.classList.add('selected');
                 });
                 
                 waveButtons.appendChild(button);
@@ -3302,7 +3486,7 @@ ctx.restore();
                                 const duration = baseDuration * durationMultiplier;
                                 // Apply time warp effect to slow down enemies
                                 gameState.timeWarpActive = true;
-                                gameState.player.timeWarpActive = true;
+                                // gameState.player.timeWarpActive = true; // REMOVE THIS LINE
                                 gameState.activePowerUps.timeWarp.active = true;
                                 gameState.activePowerUps.timeWarp.remaining = duration;
                                 gameState.activePowerUps.timeWarp.total = duration;
@@ -3372,7 +3556,7 @@ ctx.restore();
                                 break;
                             case 'timeWarp':
                                 gameState.timeWarpActive = false;
-                                gameState.player.timeWarpActive = false;
+                                // gameState.player.timeWarpActive = false; // REMOVE THIS LINE
                                 break;
                         }
                     }
@@ -5217,7 +5401,6 @@ ctx.restore();
                 safeExecute(drawEnemyBullets, "drawEnemyBullets"); // Restore
                 safeExecute(drawParticles, "drawParticles"); // Restore
                 safeExecute(drawFloatingTexts, "drawFloatingTexts"); // Restore
-                safeExecute(drawUI, "drawUI"); // Restore
                 safeExecute(drawMines, "drawMines"); // Keep 
                 
                 // Draw game state messages (always draw)
@@ -5241,6 +5424,7 @@ ctx.restore();
             }
             
             // Loop with a reference we can cancel if needed
+            updateMainUIPanel();
             window.gameLoopId = requestAnimationFrame(gameLoop);
         }
 
@@ -5355,7 +5539,6 @@ ctx.restore();
             }
         }
         // --- End ensure ---
-
         function updateStars() {
             // Update star positions to create parallax scrolling effect
             stars.forEach(star => {
@@ -5433,14 +5616,13 @@ ctx.restore();
             if (debugBtn) {
                 debugBtn.addEventListener('click', function() {
                     debugMode = !debugMode;
-                const debugPanel = document.getElementById('debugPanel');
-                if (debugPanel) {
+                    const debugPanel = document.getElementById('debugPanel');
+                    if (debugPanel) {
                         debugPanel.style.display = debugMode ? 'block' : 'none';
                     }
-                    this.textContent = debugMode ? 'Debug Mode: ON' : 'Debug Mode (Alt+D)';
+                    // No text, just icon
                 });
             }
-            
             // Debug panel button event listeners
             const debugClearBtn = document.getElementById('debugClearBtn');
             if (debugClearBtn) {
@@ -5449,12 +5631,10 @@ ctx.restore();
                     if (debugContent) {
                         debugContent.innerHTML = '';
                     }
-                    
                     // Also clear frame time history
                     frameTimeHistory = [];
                 });
             }
-            
             // Debug toggle button
             const debugToggleBtn = document.getElementById('debugToggleBtn');
             if (debugToggleBtn) {
@@ -5464,13 +5644,6 @@ ctx.restore();
                     this.textContent = window.functionExecutionTracker.enabled ? 'Tracking: ON' : 'Toggle Debug';
                 });
             }
-            
-            // Alt+D shortcut for debug mode
-        document.addEventListener('keydown', function(e) {
-            if (e.altKey && e.key.toLowerCase() === 'd') {
-                    debugBtn.click(); // Simulate click on debug button
-                }
-            });
         });
         
         // Function to draw debug information
@@ -5635,6 +5808,51 @@ ctx.restore();
         }
 
         // Handle visibility change to pause game when tab is inactive
+        function updateMainUIPanel() {
+    const panel = document.getElementById('mainUIPanel');
+    if (!panel) return;
+    const healthPercent = Math.max(0, Math.min(1, gameState.player.health / gameState.player.maxHealth));
+    const energyPercent = Math.max(0, Math.min(1, gameState.player.energy / gameState.player.maxEnergy));
+    const score = gameState.player.score;
+    const wave = gameState.currentWave;
+    const wavesTotal = gameState.wavesTotal;
+    const enemiesDefeated = gameState.enemiesDefeated;
+    const enemiesPerWave = gameState.enemiesPerWave;
+    const timer = typeof formatTime === 'function' ? formatTime(gameState.gameTimer) : (gameState.gameTimer / 1000).toFixed(1) + 's';
+    // Power-ups
+    const powerUps = Object.entries(gameState.activePowerUps)
+        .filter(([type, state]) => state.active && state.total > 0)
+        .map(([type, state]) => {
+            let icon = '✨';
+            let label = type.charAt(0).toUpperCase() + type.slice(1);
+            if (type === 'shield') { icon = '🛡️'; label = 'Shield'; }
+            if (type === 'multiShot') { icon = '💥'; label = 'Multi-Shot'; }
+            if (type === 'speedBoost') { icon = '⚡'; label = 'Speed'; }
+            if (type === 'rapidFire') { icon = '🔥'; label = 'Rapid'; }
+            if (type === 'timeWarp') { icon = '⏳'; label = 'Time'; }
+            const percent = Math.max(0, Math.min(1, state.remaining / state.total));
+            return `<div class='main-ui-powerup-pill'>${icon} ${label}
+                <div class='main-ui-powerup-pill-bar'><div class='main-ui-powerup-pill-bar-fill' style='width:${percent*100}%'></div></div>
+            </div>`;
+        }).join('');
+    panel.innerHTML = `
+        <div class='main-ui-bar health'>
+            <div class='main-ui-bar-fill health' style='width:${healthPercent*100}%'></div>
+            <div class='main-ui-bar-value'>${Math.round(healthPercent*100)}%</div>
+        </div>
+        <div class='main-ui-bar energy'>
+            <div class='main-ui-bar-fill energy' style='width:${energyPercent*100}%'></div>
+            <div class='main-ui-bar-value'>${Math.round(energyPercent*100)}%</div>
+        </div>
+        <div class='main-ui-row'>
+            <span class='main-ui-icon'>⭐</span><span class='main-ui-value'>${score}</span>
+            <span class='main-ui-icon'>🌊</span><span class='main-ui-value'>${wave}/${wavesTotal}</span>
+            <span class='main-ui-icon'>🎯</span><span class='main-ui-value'>${enemiesDefeated}/${enemiesPerWave}</span>
+        </div>
+        <div class='main-ui-timer'>⏱️ ${timer}</div>
+        <div class='main-ui-powerups'>${powerUps}</div>
+    `;
+}
     </script>
 </body>
 </html> 
