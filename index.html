@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Made by Jesse Smith</title>
+    <style>
+        :root {
+            --primary: #0e0e18;
+            --secondary: #1e1e2e;
+            --accent: #7e40ff;
+            --accent-alt: #ff4070;
+            --text: #ffffff;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--primary);
+            color: var(--text);
+            min-height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        .content {
+            text-align: center;
+            z-index: 10;
+            max-width: 600px;
+            background-color: rgba(14, 14, 24, 0.7);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+        
+        .instructions {
+            margin-bottom: 2rem;
+            text-align: left;
+        }
+        
+        .instructions h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.5rem;
+            letter-spacing: 1px;
+        }
+        
+        .instruction-card {
+            background-color: rgba(30, 30, 46, 0.6);
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+        
+        .instruction-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+        
+        .key-control {
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            padding: 0.4rem 0.8rem;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: white;
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .key-action {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.9);
+            flex: 1;
+            margin-left: 1rem;
+        }
+        
+        .instruction-tip {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .instruction-tip p {
+            margin-bottom: 0.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.95rem;
+        }
+        
+        .play-button {
+            display: inline-block;
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            color: var(--text);
+            padding: 1rem 3rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.3s ease, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: none;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(126, 64, 255, 0.3);
+            z-index: 1;
+        }
+        
+        .play-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-alt), var(--accent));
+            transition: opacity 0.4s ease-out;
+            z-index: -1;
+            opacity: 0;
+        }
+        
+        .play-button:hover::before {
+            opacity: 1;
+        }
+        
+        .play-button:hover {
+            transform: translateY(-5px) scale(1.1);
+            box-shadow: 0 15px 40px rgba(126, 64, 255, 0.6);
+            letter-spacing: 3px;
+        }
+        
+        .copyright {
+            position: fixed;
+            bottom: 1rem;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="network-canvas"></canvas>
+
+    <div class="content">
+        <div class="instructions">
+            <h2>How to Play</h2>
+            <div class="instruction-card">
+                <div class="instruction-item">
+                    <span class="key-control">W A S D</span>
+                    <span class="key-action">Move your ship in all directions</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">MOUSE</span>
+                    <span class="key-action">Aim your weapons</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">CLICK</span>
+                    <span class="key-action">Fire weapons</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">SPACEBAR</span>
+                    <span class="key-action">Dash (when available)</span>
+                </div>
+                <div class="instruction-item">
+                    <span class="key-control">R</span>
+                    <span class="key-action">Restart game (when game over)</span>
+                </div>
+                <div class="instruction-tip">
+                    <p>Destroy enemy ships and collect power-ups to increase your score!</p>
+                    <p>Avoid enemy fire and prevent enemies from reaching the bottom.</p>
+                </div>
+            </div>
+        </div>
+        <a href="game.html" class="play-button">Play Now</a>
+    </div>
+    
+    <div class="copyright">
+        &copy; 2025 JL Studios. All rights reserved.
+    </div>
+    
+    <script>
+        // Network background animation
+        const canvas = document.getElementById('network-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas to full window size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        // Node properties
+        const nodes = [];
+        const nodeCount = 150;
+        const nodeConnectionDistance = 150;
+        const mouseConnectionDistance = 200;
+        const hoverMouseConnectionDistance = 300; // Increased connection distance while hovering
+        
+        // Button hover state
+        let isButtonHovered = false;
+        const speedMultiplier = 2.5;
+        
+        // Dispersion effect (when unhover button)
+        let isDispersing = false;
+        let disperseOriginX = 0;
+        let disperseOriginY = 0;
+        let disperseStartTime = 0;
+        const disperseDuration = 1500; // 1.5 seconds for the disperse effect
+        const disperseStrength = 3; // How strongly nodes disperse
+        
+        // Shockwave effect
+        let isShockwaveActive = false;
+        let shockwaveRadius = 0;
+        let shockwaveWidth = 2;
+        let shockwaveStartTime = 0;
+        const shockwaveDuration = 1000; // 1 second
+        const shockwaveMaxRadius = 500; // Maximum radius in pixels
+        
+        // Node colors
+        const nodeColors = [
+            'rgba(126, 64, 255, 0.7)', // Purple
+            'rgba(255, 64, 112, 0.7)', // Pink
+            'rgba(64, 190, 255, 0.7)'  // Blue
+        ];
+        
+        // Mouse position (starts offscreen)
+        let mouseX = -100;
+        let mouseY = -100;
+        let isMouseOnPage = false;
+        
+        // Create nodes
+        for (let i = 0; i < nodeCount; i++) {
+            const size = Math.random() * 4 + 2;
+            nodes.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: size,
+                color: nodeColors[Math.floor(Math.random() * nodeColors.length)],
+                originalColor: nodeColors[Math.floor(Math.random() * nodeColors.length)], // Store original color
+                speedX: (Math.random() - 0.5) * 0.5,
+                speedY: (Math.random() - 0.5) * 0.5,
+                originalSpeedX: (Math.random() - 0.5) * 0.5,
+                originalSpeedY: (Math.random() - 0.5) * 0.5,
+                glow: Math.random() > 0.7, // Some nodes will glow
+                pulseSpeed: Math.random() * 0.03 + 0.01,
+                pulseAmount: 0,
+                disperseIntensity: 0 // Track dispersion intensity for each node
+            });
+        }
+        
+        // Track mouse movement
+        document.addEventListener('mousemove', (e) => {
+            try {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+                isMouseOnPage = true;
+            } catch(err) {
+                console.error("Mouse move error:", err);
+            }
+        });
+        
+        // Track when mouse leaves the page
+        document.addEventListener('mouseout', (e) => {
+            try {
+                // Only set mouse as off-page if it's actually leaving the document
+                if (!e.relatedTarget || e.relatedTarget.nodeName === 'HTML') {
+                    isMouseOnPage = false;
+                }
+            } catch(err) {
+                console.error("Mouse out error:", err);
+            }
+        });
+        
+        // Track button hover
+        const playButton = document.querySelector('.play-button');
+        playButton.addEventListener('mouseenter', (e) => {
+            try {
+                isButtonHovered = true;
+                
+                // Speed up all nodes
+                nodes.forEach(node => {
+                    node.speedX = node.originalSpeedX * speedMultiplier;
+                    node.speedY = node.originalSpeedY * speedMultiplier;
+                });
+                
+                // Update mouse position to button position if not on page
+                if (!isMouseOnPage) {
+                    mouseX = e.clientX;
+                    mouseY = e.clientY;
+                    isMouseOnPage = true;
+                }
+            } catch(err) {
+                console.error("Button hover enter error:", err);
+            }
+        });
+        
+        playButton.addEventListener('mouseleave', (e) => {
+            try {
+                isButtonHovered = false;
+                
+                // Start the dispersion effect
+                isDispersing = true;
+                // Store button position as the origin of dispersion
+                const rect = playButton.getBoundingClientRect();
+                disperseOriginX = rect.left + rect.width / 2;
+                disperseOriginY = rect.top + rect.height / 2;
+                disperseStartTime = Date.now();
+                
+                // Start shockwave
+                isShockwaveActive = true;
+                shockwaveRadius = 0;
+                shockwaveStartTime = Date.now();
+                
+                // Return nodes to normal speed (will be temporarily overridden by dispersion)
+                nodes.forEach(node => {
+                    node.speedX = node.originalSpeedX;
+                    node.speedY = node.originalSpeedY;
+                    // Store original color if needed
+                    if (!node.originalColor) {
+                        node.originalColor = node.color;
+                    }
+                });
+            } catch(err) {
+                console.error("Button hover leave error:", err);
+            }
+        });
+        
+        // Draw a node
+        function drawNode(node) {
+            try {
+                ctx.beginPath();
+                
+                // Add pulsing effect to some nodes
+                let radius = node.radius;
+                if (node.glow) {
+                    // Ensure pulseSpeed is not zero to prevent animation from stopping
+                    const safePulseSpeed = Math.max(0.01, node.pulseSpeed);
+                    node.pulseAmount += safePulseSpeed * (isButtonHovered ? 2 : 1); // Faster pulsing when button hovered
+                    // More dramatic pulse when button is hovered
+                    const pulseIntensity = isButtonHovered ? 2.5 : 1.5;
+                    // Add extra pulse intensity during dispersion
+                    const dispersePulse = node.disperseIntensity > 0 ? node.disperseIntensity * 2 : 0;
+                    radius += Math.sin(node.pulseAmount) * (pulseIntensity + dispersePulse);
+                }
+                
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = node.color;
+                ctx.fill();
+                
+                // Add glow effect
+                if (node.glow || node.disperseIntensity > 0) {
+                    // More glow during dispersion
+                    const disperseGlow = node.disperseIntensity > 0 ? node.disperseIntensity * 15 : 0;
+                    // More glow when button is hovered
+                    ctx.shadowBlur = isButtonHovered ? 25 : 15 + disperseGlow;
+                    ctx.shadowColor = node.color;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            } catch(err) {
+                console.error("Draw node error:", err);
+            }
+        }
+        
+        // Draw a connection between nodes
+        function drawConnection(node1, node2, distance, maxDistance) {
+            try {
+                const opacity = 1 - (distance / maxDistance);
+                // Increase opacity when button is hovered
+                const finalOpacity = isButtonHovered ? Math.min(1, opacity * 1.5) : opacity;
+                
+                // Get the color values for the gradient
+                let color1 = node1.color.replace(/[^\d,]/g, '').split(',');
+                let color2 = node2.color.replace(/[^\d,]/g, '').split(',');
+                
+                // Create a gradient for more vibrant connections
+                const gradient = ctx.createLinearGradient(node1.x, node1.y, node2.x, node2.y);
+                gradient.addColorStop(0, `rgba(${color1[0]}, ${color1[1]}, ${color1[2]}, ${finalOpacity})`);
+                gradient.addColorStop(1, `rgba(${color2[0]}, ${color2[1]}, ${color2[2]}, ${finalOpacity})`);
+                
+                ctx.beginPath();
+                ctx.moveTo(node1.x, node1.y);
+                ctx.lineTo(node2.x, node2.y);
+                ctx.strokeStyle = gradient;
+                // Make lines thicker when button is hovered
+                ctx.lineWidth = isButtonHovered ? finalOpacity * 2 : finalOpacity * 1.5;
+                ctx.stroke();
+            } catch(err) {
+                console.error("Draw connection error:", err);
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            try {
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Handle dispersion effect if active
+                let disperseEffect = 0;
+                if (isDispersing) {
+                    const elapsedTime = Date.now() - disperseStartTime;
+                    const progress = Math.min(1, elapsedTime / disperseDuration);
+                    
+                    // Disperse strength decreases over time (strongest at start)
+                    disperseEffect = disperseStrength * (1 - progress);
+                    
+                    // End the effect after duration
+                    if (progress >= 1) {
+                        isDispersing = false;
+                    }
+                }
+                
+                // Draw shockwave if active
+                if (isShockwaveActive) {
+                    const elapsedTime = Date.now() - shockwaveStartTime;
+                    const progress = Math.min(1, elapsedTime / shockwaveDuration);
+                    
+                    // Calculate growing radius
+                    shockwaveRadius = shockwaveMaxRadius * progress;
+                    
+                    // Draw the shockwave ring
+                    ctx.beginPath();
+                    ctx.arc(disperseOriginX, disperseOriginY, shockwaveRadius, 0, Math.PI * 2);
+                    ctx.lineWidth = 8 * (1 - progress); // Gets thinner as it expands
+                    
+                    // Create gradient for shockwave
+                    const gradient = ctx.createRadialGradient(
+                        disperseOriginX, disperseOriginY, shockwaveRadius - 8,
+                        disperseOriginX, disperseOriginY, shockwaveRadius + 8
+                    );
+                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+                    gradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.7 * (1-progress)})`);
+                    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    
+                    ctx.strokeStyle = gradient;
+                    ctx.stroke();
+                    
+                    // Add a second inner ring
+                    if (progress < 0.7) {
+                        ctx.beginPath();
+                        const innerRadius = shockwaveRadius * 0.7;
+                        ctx.arc(disperseOriginX, disperseOriginY, innerRadius, 0, Math.PI * 2);
+                        ctx.lineWidth = 5 * (1 - progress); // Gets thinner as it expands
+                        
+                        const innerGradient = ctx.createRadialGradient(
+                            disperseOriginX, disperseOriginY, innerRadius - 5,
+                            disperseOriginX, disperseOriginY, innerRadius + 5
+                        );
+                        innerGradient.addColorStop(0, 'rgba(126, 64, 255, 0)');
+                        innerGradient.addColorStop(0.5, `rgba(126, 64, 255, ${0.5 * (1-progress)})`);
+                        innerGradient.addColorStop(1, 'rgba(126, 64, 255, 0)');
+                        
+                        ctx.strokeStyle = innerGradient;
+                        ctx.stroke();
+                    }
+                    
+                    // End the effect after duration
+                    if (progress >= 1) {
+                        isShockwaveActive = false;
+                    }
+                }
+                
+                // Update and draw nodes
+                for (let i = 0; i < nodes.length; i++) {
+                    const node = nodes[i];
+                    
+                    // Apply dispersion effect if active
+                    if (isDispersing) {
+                        // Calculate direction from button to node
+                        const dx = node.x - disperseOriginX;
+                        const dy = node.y - disperseOriginY;
+                        
+                        // Calculate distance from button
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Only affect nodes within a radius of 400px from button
+                        const dispersionRadius = 400;
+                        if (distance < dispersionRadius) {
+                            // Calculate normalized direction vector
+                            const normX = dx / (distance || 1); // Avoid division by zero
+                            const normY = dy / (distance || 1);
+                            
+                            // Effect is stronger for closer nodes
+                            const intensity = (1 - distance / dispersionRadius) * disperseEffect;
+                            node.disperseIntensity = intensity; // Store for visual effects
+                            
+                            // Apply push force in the direction away from button
+                            node.x += normX * intensity * 5;
+                            node.y += normY * intensity * 5;
+                            node.speedX += normX * intensity * 0.2;
+                            node.speedY += normY * intensity * 0.2;
+                            
+                            // Change color during dispersion
+                            if (intensity > 0.2) {
+                                // Store original color if we haven't already
+                                if (!node.originalColor) {
+                                    node.originalColor = node.color;
+                                }
+                                
+                                // Transition to energized color (white with original color alpha)
+                                const baseColor = node.originalColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+                                if (baseColor) {
+                                    const alpha = parseFloat(baseColor[4]);
+                                    // More intense color for stronger dispersion
+                                    const whiteness = intensity * 200;
+                                    const r = Math.min(255, parseInt(baseColor[1]) + whiteness);
+                                    const g = Math.min(255, parseInt(baseColor[2]) + whiteness);
+                                    const b = Math.min(255, parseInt(baseColor[3]) + whiteness);
+                                    node.color = `rgba(${r}, ${g}, ${b}, ${alpha + intensity * 0.3})`;
+                                }
+                            } else if (node.originalColor) {
+                                // Restore original color when effect is weak
+                                node.color = node.originalColor;
+                            }
+                        } else {
+                            // Reset dispersion intensity for nodes outside radius
+                            node.disperseIntensity = 0;
+                            // Restore original color
+                            if (node.originalColor) {
+                                node.color = node.originalColor;
+                            }
+                        }
+                    } else {
+                        // Reset dispersion intensity when not dispersing
+                        node.disperseIntensity = 0;
+                        // Restore original color
+                        if (node.originalColor && node.color !== node.originalColor) {
+                            node.color = node.originalColor;
+                        }
+                    }
+                    
+                    // Move node
+                    node.x += node.speedX;
+                    node.y += node.speedY;
+                    
+                    // Bounce off edges
+                    if (node.x < 0 || node.x > canvas.width) node.speedX *= -1;
+                    if (node.y < 0 || node.y > canvas.height) node.speedY *= -1;
+                    
+                    // Keep nodes within bounds
+                    if (node.x < 0) node.x = 0;
+                    if (node.x > canvas.width) node.x = canvas.width;
+                    if (node.y < 0) node.y = 0;
+                    if (node.y > canvas.height) node.y = canvas.height;
+                    
+                    // Draw node
+                    drawNode(node);
+                    
+                    // Draw connections between nearby nodes
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const otherNode = nodes[j];
+                        const dx = node.x - otherNode.x;
+                        const dy = node.y - otherNode.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < nodeConnectionDistance) {
+                            drawConnection(node, otherNode, distance, nodeConnectionDistance);
+                        }
+                    }
+                    
+                    // Connect to mouse if it's on page
+                    if (isMouseOnPage) {
+                        const dx = node.x - mouseX;
+                        const dy = node.y - mouseY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Use larger connection distance when button is hovered
+                        const currentMouseConnectionDistance = isButtonHovered ? hoverMouseConnectionDistance : mouseConnectionDistance;
+                        
+                        if (distance < currentMouseConnectionDistance) {
+                            // Draw connection to mouse
+                            ctx.beginPath();
+                            ctx.moveTo(node.x, node.y);
+                            ctx.lineTo(mouseX, mouseY);
+                            
+                            // Creating a gradient for mouse connections
+                            const opacity = 1 - (distance / currentMouseConnectionDistance);
+                            const finalOpacity = isButtonHovered ? Math.min(1, opacity * 1.3) : opacity;
+                            const colorValues = node.color.replace(/[^\d,]/g, '').split(',');
+                            
+                            const gradient = ctx.createLinearGradient(node.x, node.y, mouseX, mouseY);
+                            gradient.addColorStop(0, `rgba(${colorValues[0]}, ${colorValues[1]}, ${colorValues[2]}, ${finalOpacity})`);
+                            gradient.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
+                            
+                            ctx.strokeStyle = gradient;
+                            // Make mouse connection lines thicker when button is hovered
+                            ctx.lineWidth = isButtonHovered ? finalOpacity * 2.5 : finalOpacity * 2;
+                            ctx.stroke();
+                            
+                            // Pull the node slightly toward the mouse
+                            const pullStrength = isButtonHovered ? 0.3 : 0.15;
+                            const pullX = dx * 0.001 * pullStrength;
+                            const pullY = dy * 0.001 * pullStrength;
+                            
+                            node.speedX -= pullX;
+                            node.speedY -= pullY;
+                        }
+                    }
+                }
+                
+                // Draw mouse point if on the page
+                if (isMouseOnPage) {
+                    ctx.beginPath();
+                    // Make cursor dot larger when button is hovered
+                    const cursorSize = isButtonHovered ? 6 : 4;
+                    ctx.arc(mouseX, mouseY, cursorSize, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fill();
+                    
+                    // Add glow to mouse cursor
+                    // More intense glow when button is hovered
+                    ctx.shadowBlur = isButtonHovered ? 30 : 20;
+                    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            } catch(err) {
+                console.error("Animation error:", err);
+            }
+            
+            // Always request next frame, even if there was an error
+            requestAnimationFrame(animate);
+        }
+        
+        // Start animation
+        animate();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Redistribute nodes on resize
+            for (let i = 0; i < nodes.length; i++) {
+                nodes[i].x = Math.random() * canvas.width;
+                nodes[i].y = Math.random() * canvas.height;
+            }
+        });
+    </script>
+</body>
+</html> 
